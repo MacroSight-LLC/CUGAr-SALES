@@ -65,17 +65,19 @@ def load_service_configs(yaml_path: str) -> Dict[str, ServiceConfig]:
             # Handle new structure with both 'services' and 'mcpServers' keys
             if 'services' in data:
                 # Legacy services under 'services' key
-                for item in data['services']:
-                    for service_name, config in item.items():
-                        service_config = _create_service_config(service_name, config)
-                        services[service_name] = service_config
+                if data['services'] is not None:
+                    for item in data['services']:
+                        for service_name, config in item.items():
+                            service_config = _create_service_config(service_name, config)
+                            services[service_name] = service_config
 
             if 'mcpServers' in data:
-                # Standard MCP format
-                mcp_servers = data['mcpServers']
-                for service_name, config in mcp_servers.items():
-                    service_config = _create_service_config(service_name, config, is_mcp_server=True)
-                    services[service_name] = service_config
+                if data['mcpServers'] is not None:
+                    # Standard MCP format
+                    mcp_servers = data['mcpServers']
+                    for service_name, config in mcp_servers.items():
+                        service_config = _create_service_config(service_name, config, is_mcp_server=True)
+                        services[service_name] = service_config
         elif isinstance(data, list):
             # Pure legacy format (list at root)
             for item in data:
