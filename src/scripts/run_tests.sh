@@ -57,6 +57,7 @@ elif [ "$1" = "unit_tests" ]; then
     run_pytest ./src/system_tests/e2e/test_runtime_tools.py
     run_pytest ./src/cuga/backend/tools_env/code_sandbox/tests/
     run_pytest ./src/system_tests/unit/test_sandbox_async.py
+    run_pytest ./src/cuga/backend/cuga_graph/nodes/api/code_agent/test_extract_codeblocks.py
     run_pytest_with_memory ./src/system_tests/unit/test_memory.py
 else
     echo "Running default tests (registry + variables manager + local sandbox + e2e without save_reuse and without sandbox docker)..."
@@ -64,6 +65,7 @@ else
     run_pytest ./src/cuga/backend/cuga_graph/nodes/api/variables_manager/tests/
     run_pytest ./src/cuga/backend/tools_env/code_sandbox/tests/
     run_pytest ./src/system_tests/e2e/balanced_test.py ./src/system_tests/e2e/fast_test.py ./src/system_tests/e2e/test_runtime_tools.py
+    run_pytest ./src/cuga/backend/cuga_graph/nodes/api/code_agent/test_extract_codeblocks.py
     run_pytest_with_memory ./src/system_tests/unit/test_memory.py ./src/system_tests/e2e/test_memory_integration.py
 fi
 

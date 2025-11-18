@@ -16,7 +16,7 @@ EvalFunction = Callable[[str, dict[str, Any]], tuple[str, dict[str, Any]]]
 EvalCoroutine = Callable[[str, dict[str, Any]], Awaitable[tuple[str, dict[str, Any]]]]
 
 
-BACKTICK_PATTERN = r"```(.*?)(?:```(?:\n|$))"
+BACKTICK_PATTERN = r'```python(.*?)```'
 
 
 def extract_and_combine_codeblocks(text: str) -> str:
@@ -51,25 +51,24 @@ def extract_and_combine_codeblocks(text: str) -> str:
 
         print('world')
     """
+    # First check if the full text is already valid Python code
+
     # Find all code blocks in the text using regex
     # Pattern matches anything between triple backticks, with or without a language identifier
     code_blocks = re.findall(BACKTICK_PATTERN, text, re.DOTALL)
 
     if not code_blocks:
-        return ""
+        try:
+            compile(text.strip().replace('await ', ''), '<string>', 'exec')
+            return text.strip()
+        except SyntaxError:
+            return ""
 
     # Process each codeblock
     processed_blocks = []
     for block in code_blocks:
         # Strip leading and trailing whitespace
         block = block.strip()
-
-        # If the first line looks like a language identifier, remove it
-        lines = block.split("\n")
-        if lines and (not lines[0].strip() or " " not in lines[0].strip()):
-            # First line is empty or likely a language identifier (no spaces)
-            block = "\n".join(lines[1:])
-
         processed_blocks.append(block)
 
     # Combine all codeblocks with newlines between them

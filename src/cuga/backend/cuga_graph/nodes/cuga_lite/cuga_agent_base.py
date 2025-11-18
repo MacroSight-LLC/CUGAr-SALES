@@ -19,7 +19,10 @@ from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
 try:
     from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
 except ImportError:
-    LangfuseCallbackHandler = None
+    try:
+        from langfuse.callback.langchain import LangchainCallbackHandler as LangfuseCallbackHandler
+    except ImportError:
+        LangfuseCallbackHandler = None
 
 from cuga.backend.cuga_graph.nodes.api.code_agent.code_act_agent import create_codeact
 from cuga.backend.cuga_graph.nodes.api.variables_manager.manager import VariablesManager

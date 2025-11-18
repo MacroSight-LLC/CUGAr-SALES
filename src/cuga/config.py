@@ -124,6 +124,7 @@ validators = [
     Validator("advanced_features.lite_mode_tool_threshold", default=15),
     Validator("advanced_features.enable_memory", default=False),
     Validator("advanced_features.enable_fact", default=False),
+    Validator("advanced_features.decomposition_strategy", default="flexible"),
     Validator("features.chat", default=True),
     Validator("features.memory_provider", default="mem0"),
     Validator("playwright_args", default=[]),

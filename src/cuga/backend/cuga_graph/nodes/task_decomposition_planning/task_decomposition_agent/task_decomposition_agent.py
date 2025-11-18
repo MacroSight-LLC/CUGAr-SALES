@@ -53,6 +53,7 @@ class TaskDecompositionAgent(BaseAgent):
     async def run(self, input_variables: AgentState) -> AIMessage:
         data = input_variables.model_dump()
         data["instructions"] = instructions_manager.get_instructions(self.name)
+        data["decomposition_strategy"] = settings.advanced_features.decomposition_strategy
 
         # memory integration
         rtrvd_tips_formatted = None

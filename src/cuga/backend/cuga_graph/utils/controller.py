@@ -27,7 +27,11 @@ from langchain_core.messages import ToolCall
 try:
     from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
 except ImportError:
-    LangfuseCallbackHandler = None
+    try:
+        from langfuse.callback.langchain import LangchainCallbackHandler as LangfuseCallbackHandler
+    except ImportError:
+        logger.warning("Langfuse is not installed, LangfuseCallbackHandler will be None")
+        LangfuseCallbackHandler = None
 
 tracker = ActivityTracker()
 

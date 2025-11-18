@@ -23,9 +23,12 @@
 {{input}}
 """
 
+**API Applications List**: {{api_applications_list}}
+
 **Subtasks**:
 {%- for item in task_decomposition %}
-{{ loop.index }}. {{ item }}
+{{ loop.index }}. **[{{ sub_tasks_progress[loop.index0] }}]** {{ item }}
 {%- endfor %}
+
 
 Current datetime: {{current_datetime}}

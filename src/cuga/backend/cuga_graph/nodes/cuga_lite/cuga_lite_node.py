@@ -22,7 +22,10 @@ from cuga.backend.cuga_graph.nodes.api.variables_manager.manager import Variable
 try:
     from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
 except ImportError:
-    LangfuseCallbackHandler = None
+    try:
+        from langfuse.callback.langchain import LangchainCallbackHandler as LangfuseCallbackHandler
+    except ImportError:
+        LangfuseCallbackHandler = None
 
 
 from cuga.configurations.instructions_manager import get_all_instructions_formatted

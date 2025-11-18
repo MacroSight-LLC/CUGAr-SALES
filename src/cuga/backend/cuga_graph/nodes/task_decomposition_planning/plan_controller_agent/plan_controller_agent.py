@@ -54,8 +54,13 @@ class PlanControllerAgent(BaseAgent):
             data["img"] = tracker.images[-1]
         data["task_decomposition"] = task_input["task_decomposition"]
         data["stm_all_history"] = task_input["stm_all_history"]
+        data["sub_tasks_progress"] = input_variables.sub_tasks_progress or []
         data["variables_history"] = var_manager.get_variables_summary(last_n=6)
         data["instructions"] = instructions_manager.get_instructions(self.name)
+        # Add API applications list
+        data["api_applications_list"] = [
+            app.name for app in input_variables.api_intent_relevant_apps or [] if app.type == 'api'
+        ]
         result: PlanControllerOutput = await self.chain.ainvoke(data)
         logger.debug(f"PlanControllerOutput: {result.model_dump_json()}")
         return result

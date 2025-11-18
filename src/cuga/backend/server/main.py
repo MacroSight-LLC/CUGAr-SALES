@@ -45,7 +45,14 @@ from cuga.config import (
     LOGGING_DIR,
     TRACES_DIR,
 )
-from langfuse.langchain import CallbackHandler
+
+try:
+    from langfuse.langchain import CallbackHandler
+except ImportError:
+    try:
+        from langfuse.callback.langchain import LangchainCallbackHandler as CallbackHandler
+    except ImportError:
+        CallbackHandler = None
 from fastapi.responses import StreamingResponse, JSONResponse
 import json
 
@@ -340,7 +347,11 @@ async def event_stream(query: str, api_mode=False, resume=None):
         await setup_page_info(app_state.state, app_state.env)
     app_state.tracker.task_id = 'demo'
 
-    langfuse_handler = CallbackHandler() if settings.advanced_features.langfuse_tracing else None
+    langfuse_handler = (
+        CallbackHandler()
+        if settings.advanced_features.langfuse_tracing and CallbackHandler is not None
+        else None
+    )
 
     # Print Langfuse trace ID if tracing is enabled
     if langfuse_handler and settings.advanced_features.langfuse_tracing:

@@ -76,6 +76,7 @@ class AgentState(BaseModel):
     last_question: Optional[str] = None
     final_answer: Optional[str] = ""
     task_decomposition: Optional[TaskDecompositionPlan] = None
+    sub_tasks_progress: Optional[List[str]] = Field(default_factory=list)
     prediction: Optional[Prediction] = None  # The Agent's output
     feedback: Optional[List[Dict]] = Field(default_factory=list)
     # A system message (or messages) containing the intermediate steps]

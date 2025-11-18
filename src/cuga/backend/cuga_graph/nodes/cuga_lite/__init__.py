@@ -21,7 +21,10 @@ class CugaAgent(BaseCugaAgent):
         answer, metrics = await agent.execute("Your task here")
 
     With Langfuse tracing:
-        from langfuse.langchain import CallbackHandler
+        try:
+            from langfuse.langchain import CallbackHandler
+        except ImportError:
+            from langfuse.callback.langchain import LangchainCallbackHandler as CallbackHandler
         langfuse_handler = CallbackHandler() if settings.advanced_features.langfuse_tracing else None
         agent = CugaAgent(langfuse_handler=langfuse_handler)
         await agent.initialize()
