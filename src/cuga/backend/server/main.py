@@ -355,7 +355,7 @@ async def event_stream(query: str, api_mode=False, resume=None, thread_id: str =
             # Reset the event for a new stream
             app_state.stop_events[thread_id].clear()
 
-    # Create a local state object - retrieve from LangGraph if resuming, otherwise create new
+    # Create a local state object - retrieve from LangGraph if resuming or if thread_id exists, otherwise create new
     local_state = None
 
     # Create local tracker instance
@@ -366,11 +366,39 @@ async def event_stream(query: str, api_mode=False, resume=None, thread_id: str =
     local_info = None
 
     if not resume:
-        # Initialize new state
-        local_state = default_state(page=None, observation=None, goal="")
-        local_state.input = query
-        local_state.thread_id = thread_id
-        local_tracker.intent = query
+        # Check if we have existing state for this thread_id (for followup questions)
+        if thread_id:
+            try:
+                latest_state_values = app_state.agent.graph.get_state(
+                    {"configurable": {"thread_id": thread_id}}
+                ).values
+                if latest_state_values:
+                    # Load existing state for followup questions
+                    local_state = AgentState(**latest_state_values)
+                    local_state.thread_id = thread_id
+                    local_state.input = query  # Update input for the new query
+                    local_tracker.intent = query
+                    logger.info(f"Loaded existing state for thread_id: {thread_id} (followup question)")
+                else:
+                    # No existing state, create new one
+                    local_state = default_state(page=None, observation=None, goal="")
+                    local_state.input = query
+                    local_state.thread_id = thread_id
+                    local_tracker.intent = query
+                    logger.info(f"Created new state for thread_id: {thread_id}")
+            except Exception as e:
+                # If state retrieval fails, create new state
+                logger.warning(f"Failed to retrieve state for thread_id {thread_id}, creating new state: {e}")
+                local_state = default_state(page=None, observation=None, goal="")
+                local_state.input = query
+                local_state.thread_id = thread_id
+                local_tracker.intent = query
+        else:
+            # No thread_id, create new state
+            local_state = default_state(page=None, observation=None, goal="")
+            local_state.input = query
+            local_state.thread_id = thread_id
+            local_tracker.intent = query
     else:
         # For resume, fetch state from LangGraph
         if thread_id:
@@ -774,6 +802,7 @@ async def reset_agent_state(request: Request):
         # State is managed per-thread via LangGraph's checkpointer.
 
         # Reset tracker experiment if enabled
+        # TODO Remove this once we have a proper way to reset the variables manager
         var_manger = VariablesManager()
         var_manger.reset()
         logger.info("Agent state reset successfully")

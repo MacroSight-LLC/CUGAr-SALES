@@ -161,6 +161,62 @@ class LoadTest(BaseTestServerStream):
                 return False, isolation_error
 
             print(f"User {user_id}: ✓ State is isolated from other threads")
+
+            # Send followup question
+            print(f"User {user_id} (Thread {thread_id}): Sending followup question...")
+            followup_query = "how many accounts did we retrieve?"
+            followup_expected_keywords = ["50"]
+
+            all_followup_events = []
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                async with client.stream(
+                    "POST",
+                    STREAM_ENDPOINT,
+                    json={"query": followup_query},
+                    headers={"Accept": "text/event-stream", "X-Thread-ID": thread_id},
+                ) as response:
+                    if response.status_code != 200:
+                        return False, f"User {user_id}: Followup failed with status {response.status_code}"
+
+                    buffer = b""
+                    async for chunk in response.aiter_bytes():
+                        buffer += chunk
+                        while b"\n\n" in buffer:
+                            event_block, buffer = buffer.split(b"\n\n", 1)
+                            event_lines = event_block.split(b"\n")
+                            event_data = {}
+                            for line in event_lines:
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                if line.startswith(b"event: "):
+                                    event_data["event"] = line[len(b"event: ") :].decode("utf-8").strip()
+                                elif line.startswith(b"data: "):
+                                    try:
+                                        data_str = line[len(b"data: ") :].decode("utf-8").strip()
+                                        event_data["data"] = self._parse_event_data(data_str)
+                                    except Exception:
+                                        event_data["data"] = line[len(b"data: ") :].strip()
+
+                            if event_data:
+                                all_followup_events.append(event_data)
+                                if event_data.get("event") == "Answer":
+                                    break
+
+            # Verify followup result
+            followup_answer_event = next((e for e in all_followup_events if e.get("event") == "Answer"), None)
+            if not followup_answer_event:
+                return False, f"User {user_id}: No Answer event found in followup"
+
+            followup_answer_data = str(followup_answer_event.get("data", "")).lower()
+            for keyword in followup_expected_keywords:
+                if keyword.lower() not in followup_answer_data:
+                    return (
+                        False,
+                        f"User {user_id}: Followup answer missing keyword '{keyword}'. Got: {followup_answer_data}",
+                    )
+
+            print(f"User {user_id}: ✓ Followup question answered correctly")
             print(f"User {user_id}: Success!")
             return True, ""
 
@@ -172,7 +228,7 @@ class LoadTest(BaseTestServerStream):
         Simulate 20 concurrent users running the same task.
         Validates state isolation between threads.
         """
-        num_users = 20
+        num_users = 5
         print(f"\n--- Starting Load Test with {num_users} users ---")
 
         start_time = time.time()

@@ -3,6 +3,7 @@ import { Send, RotateCcw, Bot, User, FileText } from "lucide-react";
 import CardManager from "./CardManager";
 import { StopButton } from "./floating/stop_button";
 import { fetchStreamingData } from "./StreamingWorkflow";
+import { DebugPanel } from "./DebugPanel";
 import "./CustomChat.css";
 
 interface Message {
@@ -56,6 +57,7 @@ export function CustomChat({ onVariablesUpdate, onFileAutocompleteOpen, onFileHo
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<Array<{ name: string; path: string; id: string }>>([]);
   const [threadId, setThreadId] = useState<string>("");
+  const threadIdRef = useRef<string>("");
   const [showExampleUtterances, setShowExampleUtterances] = useState(true);
   const [isInputFocused, setIsInputFocused] = useState(false);
 
@@ -69,7 +71,9 @@ export function CustomChat({ onVariablesUpdate, onFileAutocompleteOpen, onFileHo
 
   // Initialize threadId on mount
   useEffect(() => {
-    setThreadId(crypto.randomUUID());
+    const newThreadId = crypto.randomUUID();
+    setThreadId(newThreadId);
+    threadIdRef.current = newThreadId;
   }, []);
 
   // Create a simple chat instance interface
@@ -255,8 +259,19 @@ export function CustomChat({ onVariablesUpdate, onFileAutocompleteOpen, onFileHo
     setMessages((prev) => [...prev, botMessage]);
 
     try {
+      // Ensure threadId is set (use ref to get latest value, fallback to state)
+      const currentThreadId = threadIdRef.current || threadId;
+      if (!currentThreadId) {
+        // If still empty, generate one now
+        const newThreadId = crypto.randomUUID();
+        setThreadId(newThreadId);
+        threadIdRef.current = newThreadId;
+        console.log('[CustomChat] Generated new threadId:', newThreadId);
+      }
+      const finalThreadId = threadIdRef.current || threadId;
+      console.log('[CustomChat] Sending message with threadId:', finalThreadId);
       // Call the streaming workflow with processed text (bracket format converted to ./path)
-      await fetchStreamingData(newChatInstance as any, processedText, undefined, threadId);
+      await fetchStreamingData(newChatInstance as any, processedText, undefined, finalThreadId);
     } catch (error) {
       console.error("Error sending message:", error);
     } finally {
@@ -268,6 +283,7 @@ export function CustomChat({ onVariablesUpdate, onFileAutocompleteOpen, onFileHo
     // Reset backend
     const newThreadId = crypto.randomUUID();
     setThreadId(newThreadId);
+    threadIdRef.current = newThreadId;
     
     try {
       const response = await fetch('/reset', {
@@ -775,6 +791,7 @@ export function CustomChat({ onVariablesUpdate, onFileAutocompleteOpen, onFileHo
           </div>
         )}
       </div>
+      <DebugPanel threadId={threadIdRef.current || threadId || ""} />
     </div>
   );
 }
