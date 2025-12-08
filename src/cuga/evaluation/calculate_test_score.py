@@ -7,7 +7,7 @@ import json
 from typing import Optional, List
 import re
 from rapidfuzz import fuzz, distance
-from src.cuga.backend.tools_env.registry.mcp_manager.adapter import sanitize_tool_name
+from cuga.backend.tools_env.registry.mcp_manager.adapter import sanitize_tool_name
 
 
 class ToolCall(BaseModel):
