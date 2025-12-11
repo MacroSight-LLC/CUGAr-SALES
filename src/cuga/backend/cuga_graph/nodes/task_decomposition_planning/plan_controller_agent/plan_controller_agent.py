@@ -46,6 +46,20 @@ class PlanControllerAgent(BaseAgent):
         return result
 
     async def run(self, input_variables: AgentState) -> AIMessage:
+        logger.info(
+            f"PlanControllerAgent received - Variables count: {input_variables.variables_manager.get_variable_count()}"
+        )
+        logger.info(
+            f"PlanControllerAgent received - Variables names: {input_variables.variables_manager.get_variable_names()}"
+        )
+        logger.info(
+            f"PlanControllerAgent received - Storage keys: {list(input_variables.variables_storage.keys())}"
+        )
+        logger.info(f"PlanControllerAgent received - Counter: {input_variables.variable_counter_state}")
+        logger.info(
+            f"PlanControllerAgent received - Creation order: {input_variables.variable_creation_order}"
+        )
+
         task_input = {
             "task_decomposition": input_variables.task_decomposition.format_as_list(),
             "stm_all_history": input_variables.stm_all_history,
@@ -57,6 +71,14 @@ class PlanControllerAgent(BaseAgent):
         data["stm_all_history"] = task_input["stm_all_history"]
         # data["sub_tasks_progress"] = input_variables.sub_tasks_progress or []
         data["variables_history"] = input_variables.variables_manager.get_variables_summary(last_n=6)
+        logger.info(
+            f"Variables history being passed to prompt (length: {len(data['variables_history'])} chars):"
+        )
+        logger.info(
+            f"{data['variables_history'][:500]}..."
+            if len(data['variables_history']) > 500
+            else data['variables_history']
+        )
         data["instructions"] = instructions_manager.get_instructions(self.name)
         # Add API applications list
         data["api_applications_list"] = [

@@ -173,6 +173,8 @@ class ApiPlanner(BaseNode):
                     logger.info(
                         f"Tool count ({tool_count}) below threshold ({threshold}) - routing to CugaLite"
                     )
+                    logger.info(f"APIPlannerAgent routing with state.sub_task: {state.sub_task}")
+                    logger.info(f"APIPlannerAgent routing with state.sub_task_app: {state.sub_task_app}")
                     return Command(update=state.model_dump(), goto="CugaLite")
 
         # Handle human consultation response (only if HITL is enabled)

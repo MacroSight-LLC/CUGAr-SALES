@@ -158,6 +158,9 @@ class PlanControllerNode(BaseNode):
             state.sub_task = plan_controller_output.next_subtask
             state.sub_task_app = plan_controller_output.next_subtask_app
             state.sub_task_type = plan_controller_output.next_subtask_type
+            logger.info(f"PlanController setting state.sub_task to: {state.sub_task}")
+            logger.info(f"PlanController setting state.sub_task_app to: {state.sub_task_app}")
+            logger.info(f"PlanController setting state.sub_task_type to: {state.sub_task_type}")
             if plan_controller_output.next_subtask_type == "api":
                 # Clear chat agent messages when switching to API tasks
                 state.chat_messages = []

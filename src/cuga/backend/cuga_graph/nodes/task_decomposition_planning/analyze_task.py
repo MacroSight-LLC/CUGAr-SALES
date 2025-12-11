@@ -81,7 +81,7 @@ class TaskAnalyzer(BaseNode):
                     ),
                     AnalyzeTaskAppsOutput(name=web_app_name, description=web_description, url="", type='web'),
                 ], AppMatch(relevant_apps=[apps[0].name, web_app_name], thoughts="")
-            logger.debug(f"All available apps: {[p for p in apps]}")
+            # logger.debug(f"All available apps: {[p for p in apps]}")
             if len(settings.features.forced_apps) == 0:
                 # memory integration
                 rtrvd_tips_formatted = None
@@ -203,7 +203,11 @@ class TaskAnalyzer(BaseNode):
                     for app in all_apps:
                         app_info = f"- **{app.name}**"
                         if app.description:
-                            app_info += f": {app.description}"
+                            description = app.description
+                            max_length = 300
+                            if len(description) > max_length:
+                                description = description[:max_length] + '...'
+                            app_info += f": {description}"
                         app_info += " (API)"
                         connected_apps.append(app_info)
 

@@ -189,6 +189,7 @@ class CugaAgent:
         override_return_to_user_cases: Optional[List[str]] = None,
         instructions: Optional[str] = None,
         task_loaded_from_file: bool = False,
+        is_autonomous_subtask: bool = False,
     ):
         """
         Initialize CugaAgent.
@@ -204,6 +205,7 @@ class CugaAgent:
                                   If None, uses default cases. Example: ["Request user approval for destructive actions"]
             instructions: Optional special instructions to include in the system prompt.
             task_loaded_from_file: If True, indicates that the task was loaded from a file (e.g., markdown file).
+            is_autonomous_subtask: If True, indicates this is an autonomous subtask that should complete without user interaction.
         """
         self.tool_provider = tool_provider
         self.model_settings = model_settings
@@ -213,6 +215,7 @@ class CugaAgent:
         self.override_return_to_user_cases = override_return_to_user_cases
         self.instructions = instructions
         self.task_loaded_from_file = task_loaded_from_file
+        self.is_autonomous_subtask = is_autonomous_subtask
         self.prompt_template = prompt_template
         self.apps: List[AppDefinition] = []
         self.tools: List[StructuredTool] = []
@@ -231,10 +234,20 @@ class CugaAgent:
 
         await self.tool_provider.initialize()
 
-        self.apps = await self.tool_provider.get_apps()
-        logger.info(f"Found {len(self.apps)} apps: {[app.name for app in self.apps]}")
+        all_apps = await self.tool_provider.get_apps()
 
-        self.tools = await self.tool_provider.get_all_tools()
+        # Check if tool_provider has app_names filter set (for single-app mode)
+        has_app_filter = hasattr(self.tool_provider, 'app_names') and self.tool_provider.app_names
+        if has_app_filter and len(self.tool_provider.app_names) == 1:
+            self.apps = [app for app in all_apps if app.name == self.tool_provider.app_names[0]]
+            logger.info(f"Filtered to specific app: {self.apps[0].name if self.apps else 'not found'}")
+            logger.info(f"Loading tools for specific app: {self.tool_provider.app_names[0]}")
+            self.tools = await self.tool_provider.get_tools(self.tool_provider.app_names[0])
+        else:
+            self.apps = all_apps
+            logger.info(f"Found {len(self.apps)} apps: {[app.name for app in self.apps]}")
+            self.tools = await self.tool_provider.get_all_tools()
+
         if not self.tools:
             raise Exception("No tools available from tool provider")
 
@@ -257,6 +270,7 @@ class CugaAgent:
             instructions=self.instructions,
             apps=self.apps,
             task_loaded_from_file=self.task_loaded_from_file,
+            is_autonomous_subtask=self.is_autonomous_subtask,
             prompt_template=self.prompt_template,
         )
 
@@ -365,6 +379,12 @@ class CugaAgent:
             from cuga.backend.cuga_graph.state.agent_state import VariablesManager
 
             var_manager = VariablesManager()
+            # Populate the manager with variables from initial_context
+            for var_name, var_value in initial_context.items():
+                var_manager.add_variable(
+                    var_value, name=var_name, description="Passed from previous execution"
+                )
+
             variable_names = list(initial_context.keys())
             if variable_names:
                 variables_summary = var_manager.get_variables_summary(variable_names=variable_names)
@@ -683,30 +703,52 @@ def _is_serializable(value: Any) -> bool:
     return False
 
 
-def _filter_new_variables(all_locals: dict[str, Any], original_keys: set[str]) -> dict[str, Any]:
-    """Filter and return only new, serializable variables from locals.
+def _filter_new_variables(
+    all_locals: dict[str, Any],
+    original_keys: set[str],
+    original_context: dict[str, Any] = None,
+) -> dict[str, Any]:
+    """Filter and return new and modified serializable variables from locals.
 
     Args:
         all_locals: Dictionary of all local variables
         original_keys: Set of keys that existed before execution
+        original_context: Optional dict of original context values to detect modifications
 
     Returns:
-        Dictionary of new serializable variables
+        Dictionary of new and modified serializable variables
     """
     new_keys = set(all_locals.keys()) - original_keys
-    new_vars = {}
+    result_vars = {}
 
     for key in new_keys:
-        # Skip internal variables
         if key.startswith('_'):
             continue
         value = all_locals[key]
         if _is_serializable(value):
-            new_vars[key] = value
+            result_vars[key] = value
         else:
             logger.debug(f"Skipping non-serializable variable '{key}': {type(value).__name__}")
 
-    return new_vars
+    if original_context:
+        for key, orig_value in original_context.items():
+            if key.startswith('_'):
+                continue
+            if key not in all_locals:
+                continue
+            new_value = all_locals[key]
+            if not _is_serializable(new_value):
+                continue
+            try:
+                if new_value != orig_value:
+                    result_vars[key] = new_value
+                    logger.debug(f"Detected modified variable '{key}'")
+            except Exception:
+                if new_value is not orig_value:
+                    result_vars[key] = new_value
+                    logger.debug(f"Detected modified variable '{key}' (identity check)")
+
+    return result_vars
 
 
 def _serialize_tools_for_e2b(locals_dict: dict[str, Any], apps_list: List[str] = None) -> str:
@@ -989,6 +1031,7 @@ async def eval_with_tools_async(
     """
 
     original_keys = set(_locals.keys())
+    original_context = {k: v for k, v in _locals.items() if _is_serializable(v) and not k.startswith('_')}
     result = ""
 
     # Pre-execution security validation: Scan for dangerous imports
@@ -1069,7 +1112,7 @@ async def __async_main():
                 wrapped_code, context_locals=_locals, thread_id=thread_id, apps_list=apps_list
             )
             _locals.update(parsed_locals)
-            new_vars = _filter_new_variables(_locals, original_keys)
+            new_vars = _filter_new_variables(_locals, original_keys, original_context)
             return result, new_vars
 
         # Local execution with restricted environment
@@ -1240,8 +1283,8 @@ async def __async_main():
 
         result += f"\n{traceback.format_exc()}"
 
-    # Filter new variables
-    new_vars = _filter_new_variables(_locals, original_keys)
+    # Filter new and modified variables
+    new_vars = _filter_new_variables(_locals, original_keys, original_context)
 
     # Add new variables to VariablesManager and get their preview
     if new_vars:
@@ -1272,6 +1315,7 @@ def create_mcp_prompt(
     instructions=None,
     apps=None,
     task_loaded_from_file=False,
+    is_autonomous_subtask=False,
     prompt_template=None,
 ):
     """Create a prompt for CodeAct agent that works with MCP tools.
@@ -1285,6 +1329,7 @@ def create_mcp_prompt(
         instructions: Optional special instructions to include in the system prompt.
         apps: Optional list of connected apps with their descriptions
         task_loaded_from_file: If True, indicates that the task was loaded from a file
+        is_autonomous_subtask: If True, indicates this is an autonomous subtask that should complete without user interaction
     """
     processed_tools = []
     for tool in tools:
@@ -1395,11 +1440,15 @@ def create_mcp_prompt(
     processed_apps = []
     if apps:
         for app in apps:
+            description = getattr(app, 'description', 'No description available')
+            max_length = 300
+            if len(description) > max_length:
+                description = description[:max_length] + '...'
             processed_apps.append(
                 {
                     'name': app.name,
                     'type': getattr(app, 'type', 'api'),
-                    'description': getattr(app, 'description', 'No description available'),
+                    'description': description,
                 }
             )
 
@@ -1411,5 +1460,6 @@ def create_mcp_prompt(
         instructions=instructions,
         tools=processed_tools,
         task_loaded_from_file=task_loaded_from_file,
+        is_autonomous_subtask=is_autonomous_subtask,
     )
     return prompt

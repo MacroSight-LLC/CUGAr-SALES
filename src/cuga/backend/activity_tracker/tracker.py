@@ -104,7 +104,7 @@ class ActivityTracker(object):
             if tool.name == tool_name:
                 result = await tool.ainvoke(args)
                 logger.debug(f"type of {type(result)}")
-                logger.debug(f"Tool output call {result}")
+                # logger.debug(f"Tool output call {result.con}")
                 # Check if result is JSON parseable
                 if isinstance(result, CallToolResult):
                     result = result.content[0]
@@ -177,8 +177,8 @@ class ActivityTracker(object):
                             result = asyncio.run(async_invoke())
                     else:
                         raise
-                logger.debug(f"type of {type(result)}")
-                logger.debug(f"Tool output call {result}")
+                # logger.debug(f"type of {type(result)}")
+                # logger.debug(f"Tool output call {result}")
                 # Check if result is JSON parseable
                 if isinstance(result, CallToolResult):
                     result = result.content[0]
@@ -244,7 +244,7 @@ class ActivityTracker(object):
         """
 
         self.tools = {}
-        logger.debug(f"tools:  {tools}")
+        # logger.debug(f"tools:  {tools}")
 
         # Common prefixes to exclude (HTTP methods, etc.)
         excluded_prefixes = {'get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'trace'}

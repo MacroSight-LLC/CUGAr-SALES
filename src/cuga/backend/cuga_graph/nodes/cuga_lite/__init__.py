@@ -38,6 +38,7 @@ class CugaAgent(BaseCugaAgent):
         langfuse_handler: Optional[Any] = None,
         instructions: Optional[str] = None,
         task_loaded_from_file: bool = False,
+        is_autonomous_subtask: bool = False,
         prompt_template: Optional[PromptTemplate] = None,
     ):
         """Initialize CugaAgent.
@@ -48,6 +49,7 @@ class CugaAgent(BaseCugaAgent):
             langfuse_handler: Optional Langfuse callback handler for tracing.
             instructions: Optional custom instructions to provide to the agent.
             task_loaded_from_file: If True, indicates that the task was loaded from a file.
+            is_autonomous_subtask: If True, indicates this is an autonomous subtask that should complete without user interaction.
         """
         tool_provider = CombinedToolProvider(app_names=app_names)
         super().__init__(
@@ -56,6 +58,7 @@ class CugaAgent(BaseCugaAgent):
             langfuse_handler=langfuse_handler,
             instructions=instructions,
             task_loaded_from_file=task_loaded_from_file,
+            is_autonomous_subtask=is_autonomous_subtask,
             prompt_template=prompt_template,
         )
         self.app_names = app_names

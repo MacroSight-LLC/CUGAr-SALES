@@ -185,6 +185,7 @@ class AgentRunner:
         goal: str = None,
         sites: List[str] = None,
         current_datetime: Optional[str] = None,
+        session_id: str = None,
     ) -> Optional[ExperimentResult]:
         langfuse_handler = None
         if settings.advanced_features.langfuse_tracing and LangfuseCallbackHandler is not None:
@@ -222,7 +223,7 @@ class AgentRunner:
                     state.elements,
                     self.env.page,
                     self.env.tool_implementation_provider,
-                    session_id=langfuse_handler.session_id if langfuse_handler else None,
+                    session_id=session_id,
                     tool_provider=self.env.tool_implementation_provider,
                 )
                 state.feedback = state.feedback + feedback
@@ -336,7 +337,7 @@ class AgentRunner:
                             state.elements,
                             self.env.page,
                             self.env.tool_implementation_provider,
-                            session_id=langfuse_handler.session_id if langfuse_handler else None,
+                            session_id=session_id,
                         )
                         state.feedback = state.feedback + feedback
                         if len(feedback) > 0 and feedback[-1]['status'] == "alert":
