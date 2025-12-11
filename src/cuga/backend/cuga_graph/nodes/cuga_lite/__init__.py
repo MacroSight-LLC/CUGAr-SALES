@@ -40,6 +40,7 @@ class CugaAgent(BaseCugaAgent):
         task_loaded_from_file: bool = False,
         is_autonomous_subtask: bool = False,
         prompt_template: Optional[PromptTemplate] = None,
+        state: Optional[Any] = None,
     ):
         """Initialize CugaAgent.
 
@@ -50,6 +51,7 @@ class CugaAgent(BaseCugaAgent):
             instructions: Optional custom instructions to provide to the agent.
             task_loaded_from_file: If True, indicates that the task was loaded from a file.
             is_autonomous_subtask: If True, indicates this is an autonomous subtask that should complete without user interaction.
+            state: Optional AgentState instance. If provided, uses state.variables_manager for variable management.
         """
         tool_provider = CombinedToolProvider(app_names=app_names)
         super().__init__(
@@ -60,6 +62,7 @@ class CugaAgent(BaseCugaAgent):
             task_loaded_from_file=task_loaded_from_file,
             is_autonomous_subtask=is_autonomous_subtask,
             prompt_template=prompt_template,
+            state=state,
         )
         self.app_names = app_names
 

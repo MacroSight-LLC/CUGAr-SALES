@@ -190,6 +190,7 @@ class CugaAgent:
         instructions: Optional[str] = None,
         task_loaded_from_file: bool = False,
         is_autonomous_subtask: bool = False,
+        state: Optional[Any] = None,
     ):
         """
         Initialize CugaAgent.
@@ -206,6 +207,7 @@ class CugaAgent:
             instructions: Optional special instructions to include in the system prompt.
             task_loaded_from_file: If True, indicates that the task was loaded from a file (e.g., markdown file).
             is_autonomous_subtask: If True, indicates this is an autonomous subtask that should complete without user interaction.
+            state: Optional AgentState instance. If provided, uses state.variables_manager for variable management.
         """
         self.tool_provider = tool_provider
         self.model_settings = model_settings
@@ -217,6 +219,7 @@ class CugaAgent:
         self.task_loaded_from_file = task_loaded_from_file
         self.is_autonomous_subtask = is_autonomous_subtask
         self.prompt_template = prompt_template
+        self.state = state
         self.apps: List[AppDefinition] = []
         self.tools: List[StructuredTool] = []
         self.agent = None
@@ -282,18 +285,19 @@ class CugaAgent:
                 elif hasattr(tool, '_run'):
                     tool.func = tool._run
 
-        # Create eval function wrapper that passes thread_id
+        # Create eval function wrapper that passes thread_id, apps_list, and state
         if self.eval_fn:
             base_eval_fn = self.eval_fn
         else:
             base_eval_fn = eval_with_tools_async
 
-        # Wrap eval function to pass thread_id and apps_list from instance
+        # Wrap eval function to pass thread_id, apps_list, and state from instance
         async def eval_function_with_thread(code: str, context: dict) -> tuple:
-            """Wrapper that passes thread_id and apps_list to eval function."""
+            """Wrapper that passes thread_id, apps_list, and state to eval function."""
             thread_id = getattr(self, 'thread_id', None)
             apps_list = [app.name for app in self.apps] if self.apps else None
-            return await base_eval_fn(code, context, thread_id=thread_id, apps_list=apps_list)
+            state = getattr(self, 'state', None)
+            return await base_eval_fn(code, context, thread_id=thread_id, apps_list=apps_list, state=state)
 
         agent_graph = create_codeact(
             model=model, tools=self.tools, eval_fn=eval_function_with_thread, prompt=custom_prompt
@@ -375,11 +379,7 @@ class CugaAgent:
         task_content = task
 
         if initial_context and not chat_messages:
-            # If we have initial context but no chat history, present the variables
-            from cuga.backend.cuga_graph.state.agent_state import VariablesManager
-
-            var_manager = VariablesManager()
-            # Populate the manager with variables from initial_context
+            var_manager = self.state.variables_manager if self.state is not None else VariablesManager()
             for var_name, var_value in initial_context.items():
                 var_manager.add_variable(
                     var_value, name=var_name, description="Passed from previous execution"
@@ -567,13 +567,12 @@ class CugaAgent:
                                 final_context[var_name] = value
 
                         # Remove newly created variables that are not being kept from var_manager
-                        from cuga.backend.cuga_graph.state.agent_state import VariablesManager
-
-                        var_manager = VariablesManager()
-                        vars_to_remove = new_var_names[:-keep_last_n_vars]  # All except last N new vars
-                        for var_name in vars_to_remove:
-                            if var_manager.remove_variable(var_name):
-                                logger.debug(f"Removed variable '{var_name}' from var_manager")
+                        if self.state is not None:
+                            var_manager = self.state.variables_manager
+                            vars_to_remove = new_var_names[:-keep_last_n_vars]  # All except last N new vars
+                            for var_name in vars_to_remove:
+                                if var_manager.remove_variable(var_name):
+                                    logger.debug(f"Removed variable '{var_name}' from var_manager")
 
                         logger.debug(
                             f"Kept last {keep_last_n_vars} of {len(new_var_names)} newly created variables (plus {len(initial_var_names)} initial vars)"
@@ -703,52 +702,30 @@ def _is_serializable(value: Any) -> bool:
     return False
 
 
-def _filter_new_variables(
-    all_locals: dict[str, Any],
-    original_keys: set[str],
-    original_context: dict[str, Any] = None,
-) -> dict[str, Any]:
-    """Filter and return new and modified serializable variables from locals.
+def _filter_new_variables(all_locals: dict[str, Any], original_keys: set[str]) -> dict[str, Any]:
+    """Filter and return only new, serializable variables from locals.
 
     Args:
         all_locals: Dictionary of all local variables
         original_keys: Set of keys that existed before execution
-        original_context: Optional dict of original context values to detect modifications
 
     Returns:
-        Dictionary of new and modified serializable variables
+        Dictionary of new serializable variables
     """
     new_keys = set(all_locals.keys()) - original_keys
-    result_vars = {}
+    new_vars = {}
 
     for key in new_keys:
+        # Skip internal variables
         if key.startswith('_'):
             continue
         value = all_locals[key]
         if _is_serializable(value):
-            result_vars[key] = value
+            new_vars[key] = value
         else:
             logger.debug(f"Skipping non-serializable variable '{key}': {type(value).__name__}")
 
-    if original_context:
-        for key, orig_value in original_context.items():
-            if key.startswith('_'):
-                continue
-            if key not in all_locals:
-                continue
-            new_value = all_locals[key]
-            if not _is_serializable(new_value):
-                continue
-            try:
-                if new_value != orig_value:
-                    result_vars[key] = new_value
-                    logger.debug(f"Detected modified variable '{key}'")
-            except Exception:
-                if new_value is not orig_value:
-                    result_vars[key] = new_value
-                    logger.debug(f"Detected modified variable '{key}' (identity check)")
-
-    return result_vars
+    return new_vars
 
 
 def _serialize_tools_for_e2b(locals_dict: dict[str, Any], apps_list: List[str] = None) -> str:
@@ -841,7 +818,11 @@ global_sandbox_id = None
 
 
 async def _execute_in_e2b_sandbox(
-    user_code: str, context_locals: dict[str, Any] = None, thread_id: str = None, apps_list: List[str] = None
+    user_code: str,
+    context_locals: dict[str, Any] = None,
+    thread_id: str = None,
+    apps_list: List[str] = None,
+    state: Optional[Any] = None,
 ) -> tuple[str, dict[str, Any]]:
     """Execute code in E2B remote sandbox with variables and tools from context (async).
 
@@ -850,6 +831,7 @@ async def _execute_in_e2b_sandbox(
         context_locals: Dictionary of variables and tools from previous execution
         thread_id: Thread ID for sandbox caching (if None, creates ephemeral sandbox)
         apps_list: List of app names for parsing tool names correctly
+        state: Optional AgentState instance. If provided, uses state.variables_manager.
 
     Returns:
         Tuple of (stdout_result, parsed_locals)
@@ -866,8 +848,7 @@ async def _execute_in_e2b_sandbox(
         context_locals = {}
 
     try:
-        # Serialize variables (non-callable values)
-        var_manager = VariablesManager()
+        var_manager = state.variables_manager if state is not None else VariablesManager()
         variables_code = var_manager.get_variables_formatted()
 
         # Serialize tool functions (callable async functions)
@@ -1016,7 +997,11 @@ if __name__ == "__main__":
 
 
 async def eval_with_tools_async(
-    code: str, _locals: dict[str, Any], thread_id: str = None, apps_list: List[str] = None
+    code: str,
+    _locals: dict[str, Any],
+    thread_id: str = None,
+    apps_list: List[str] = None,
+    state: Optional[Any] = None,
 ) -> tuple[str, dict[str, Any]]:
     """Execute code with async tools available in the local namespace.
 
@@ -1025,13 +1010,13 @@ async def eval_with_tools_async(
         _locals: Local variables/context for execution
         thread_id: Thread ID for E2B sandbox caching (optional)
         apps_list: List of app names for parsing tool names correctly (optional)
+        state: Optional AgentState instance. If provided, uses state.variables_manager.
 
     Returns:
         Tuple of (execution result, new variables dictionary)
     """
 
     original_keys = set(_locals.keys())
-    original_context = {k: v for k, v in _locals.items() if _is_serializable(v) and not k.startswith('_')}
     result = ""
 
     # Pre-execution security validation: Scan for dangerous imports
@@ -1109,10 +1094,10 @@ async def __async_main():
         # Execute in E2B sandbox if enabled
         if settings.advanced_features.e2b_sandbox:
             result, parsed_locals = await _execute_in_e2b_sandbox(
-                wrapped_code, context_locals=_locals, thread_id=thread_id, apps_list=apps_list
+                wrapped_code, context_locals=_locals, thread_id=thread_id, apps_list=apps_list, state=state
             )
             _locals.update(parsed_locals)
-            new_vars = _filter_new_variables(_locals, original_keys, original_context)
+            new_vars = _filter_new_variables(_locals, original_keys)
             return result, new_vars
 
         # Local execution with restricted environment
@@ -1283,17 +1268,13 @@ async def __async_main():
 
         result += f"\n{traceback.format_exc()}"
 
-    # Filter new and modified variables
-    new_vars = _filter_new_variables(_locals, original_keys, original_context)
+    # Filter new variables
+    new_vars = _filter_new_variables(_locals, original_keys)
 
     # Add new variables to VariablesManager and get their preview
     if new_vars:
-        var_manager = VariablesManager()
+        var_manager = state.variables_manager if state is not None else VariablesManager()
         for var_name, var_value in new_vars.items():
-            # Remove old version if it exists (keep only the last one)
-            # if state.variables_manager.remove_variable(var_name):
-            #     logger.debug(f"Removed previous version of variable '{var_name}' from var_manager")
-            # Add to variable manager
             var_manager.add_variable(var_value, name=var_name, description="Created during code execution")
 
         # Get formatted summary of all new variables
