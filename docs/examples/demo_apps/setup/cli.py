@@ -398,7 +398,7 @@ def start_crm_server() -> subprocess.Popen:
 
     cmd = [
         'uvx',
-        '--refresh',
+        '--no-cache',
         '--from',
         'git+https://github.com/cuga-project/cuga-agent.git#subdirectory=docs/examples/demo_apps/crm',
         'crm',
