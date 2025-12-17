@@ -39,8 +39,8 @@ sdk_version: \"4.36\"
 app_file: app.py
 pinned: false
 app_port: 7860
-description: Try CUGA Agent on live enterprise demos.
-short_description: Try CUGA Agent on live enterprise demos.
+description: Configurable Generalist Agent, leader in AppWorld Benchmark
+short_description: Configurable Generalist Agent, leader in AppWorld Benchmark
 ---
 
 "
