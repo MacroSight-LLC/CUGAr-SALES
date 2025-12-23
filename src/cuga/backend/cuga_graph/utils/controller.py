@@ -205,8 +205,6 @@ class AgentRunner:
         state.sites = sites
         await self.browser_update_state(state)
 
-        lifecycle_manager.enhance_state_prompt(state)
-
         self.agent_loop_obj = AgentLoop(
             thread_id=self.thread_id,
             langfuse_handler=langfuse_handler,

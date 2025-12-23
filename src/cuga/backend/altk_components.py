@@ -8,7 +8,9 @@ that the main flow continues even if a lifecycle stage fails.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import dataclasses
+import json
+from typing import Any, Dict, Iterable, List, Optional
 
 from loguru import logger
 
@@ -51,10 +53,85 @@ class ToolCallValidator:
         if not self.component:
             return tool_call
         try:
-            return self.component.process(tool_call)
+            processed = self.component.process(tool_call)
+            return processed if isinstance(processed, dict) else tool_call
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning("Refraction validation failed: {}", exc)
             return tool_call
+
+
+def _coerce_to_dicts(payload: Any) -> List[Dict[str, Any]]:
+    """Best-effort conversion of mixed tool call payloads into dictionaries."""
+
+    if payload is None:
+        return []
+
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            logger.warning("Unable to parse tool call string payload; skipping invalid data")
+            return []
+
+    if dataclasses.is_dataclass(payload):
+        payload = dataclasses.asdict(payload)
+
+    if isinstance(payload, dict):
+        return [dict(payload)]
+
+    if hasattr(payload, "model_dump"):
+        return [payload.model_dump()]  # type: ignore[no-any-return]
+
+    if hasattr(payload, "dict"):
+        return [payload.dict()]  # type: ignore[no-any-return]
+
+    if isinstance(payload, list):
+        collected: List[Dict[str, Any]] = []
+        for item in payload:
+            collected.extend(_coerce_to_dicts(item))
+        return collected
+
+    if isinstance(payload, Iterable) and not isinstance(payload, (bytes, str)):
+        collected: List[Dict[str, Any]] = []
+        for item in payload:
+            collected.extend(_coerce_to_dicts(item))
+        return collected
+
+    if hasattr(payload, "__dict__"):
+        return [dict(payload.__dict__)]
+
+    logger.warning("Unsupported tool call payload type: {}", type(payload))
+    return []
+
+
+def normalize_tool_calls(tool_calls: Optional[Iterable[Any]]) -> Optional[List[Dict[str, Any]]]:
+    """Normalize tool calls to a list of dictionaries with safe defaults."""
+
+    if tool_calls is None:
+        return None
+
+    normalized: List[Dict[str, Any]] = []
+    for idx, call_dict in enumerate(_coerce_to_dicts(tool_calls)):
+        sanitized = dict(call_dict)
+        sanitized.setdefault("id", str(idx))
+        sanitized.setdefault("type", sanitized.get("type", "function") or "function")
+
+        function_payload: Any = sanitized.get("function", {})
+        if dataclasses.is_dataclass(function_payload):
+            function_payload = dataclasses.asdict(function_payload)
+        if hasattr(function_payload, "model_dump"):
+            function_payload = function_payload.model_dump()  # type: ignore[assignment]
+        if hasattr(function_payload, "dict"):
+            function_payload = function_payload.dict()  # type: ignore[assignment]
+
+        if not isinstance(function_payload, dict):
+            function_payload = {"name": str(function_payload)} if function_payload is not None else {}
+
+        function_payload.setdefault("arguments", function_payload.get("args", {}))
+        sanitized["function"] = function_payload
+        normalized.append(sanitized)
+
+    return normalized
 
 
 class ToolOutputReviewer:
@@ -128,21 +205,30 @@ class ALTKLifecycleManager:
     def enhance_state_prompt(self, state: Any) -> Any:
         if not (self.enabled and self.prompt_enhancer):
             return state
+        already_enhanced = getattr(state, "_enhanced_prompt_applied", False)
+        if already_enhanced:
+            return state
+
         if hasattr(state, "input") and state.input:
             original = state.input
             state.input = self.prompt_enhancer.run(str(state.input))
             logger.debug("Spotlight enhanced input from {} to {}", original, state.input)
-        if hasattr(state, "goal") and state.goal:
+        if hasattr(state, "goal") and getattr(state, "goal", None):
             original = state.goal
             state.goal = self.prompt_enhancer.run(str(state.goal))
             logger.debug("Spotlight enhanced goal from {} to {}", original, state.goal)
+
+        setattr(state, "_enhanced_prompt_applied", True)
         return state
 
-    def validate_tool_calls(self, tool_calls: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
-        if not (self.enabled and self.tool_validator and tool_calls):
-            return tool_calls
-        validated = []
-        for call in tool_calls:
+    def validate_tool_calls(
+        self, tool_calls: Optional[Iterable[Any]]
+    ) -> Optional[List[Dict[str, Any]]]:
+        normalized_calls = normalize_tool_calls(tool_calls)
+        if not (self.enabled and self.tool_validator and normalized_calls):
+            return normalized_calls
+        validated: List[Dict[str, Any]] = []
+        for call in normalized_calls:
             validated.append(self.tool_validator.run(call))
         return validated
 
