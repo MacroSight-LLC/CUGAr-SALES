@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import warnings
 from concurrent.futures import Future
 from typing import Any, Coroutine
 
@@ -16,18 +17,31 @@ from cuga.mcp.interfaces import ToolRequest
 class AsyncWorker:
     """Async worker running a dedicated event loop."""
 
-    def __init__(self) -> None:
+    def __init__(self, loop_ready_timeout: float = 5.0) -> None:
         self._instance_lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_ready = threading.Event()
+        self._stopping = False
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        self._loop_ready.wait()
+        if not self._loop_ready.wait(timeout=loop_ready_timeout):
+            with self._instance_lock:
+                self._stopping = True
+            self._thread.join(timeout=1)
+            warnings.warn("AsyncWorker loop did not start within timeout")
+            raise RuntimeError("AsyncWorker loop failed to start")
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
+        with self._instance_lock:
+            return self._get_loop_locked()
+
+    def _get_loop_locked(self) -> asyncio.AbstractEventLoop:
+        if self._stopping:
+            raise RuntimeError("AsyncWorker is stopping")
+
         loop = self._loop
-        if loop is None or loop.is_closed():
+        if loop is None or loop.is_closed() or not self._loop_ready.is_set():
             raise RuntimeError("AsyncWorker loop is not running")
         return loop
 
@@ -35,26 +49,43 @@ class AsyncWorker:
         """Submit coroutine to the shared loop."""
 
         with self._instance_lock:
-            return asyncio.run_coroutine_threadsafe(coro, self.loop)
+            loop = self._get_loop_locked()
+            return asyncio.run_coroutine_threadsafe(coro, loop)
 
     def stop(self) -> None:
-        loop = self._loop
-        if not loop or loop.is_closed():
-            return
-        loop.call_soon_threadsafe(loop.stop)
+        with self._instance_lock:
+            if self._stopping:
+                return
+            self._stopping = True
+            loop = self._loop
+            if loop and not loop.is_closed():
+                loop.call_soon_threadsafe(loop.stop)
+
         self._thread.join(timeout=1)
-        self._loop = None
-        self._loop_ready.clear()
+        if self._thread.is_alive():
+            warnings.warn("AsyncWorker thread did not terminate within timeout")
+            return
+
+        with self._instance_lock:
+            self._loop = None
+            self._loop_ready.clear()
 
     @property
     def _is_running(self) -> bool:
-        return self._loop_ready.is_set() and self._loop is not None and not self._loop.is_closed()
+        with self._instance_lock:
+            return (
+                self._loop_ready.is_set()
+                and self._loop is not None
+                and not self._loop.is_closed()
+                and not self._stopping
+            )
 
     def _run_loop(self) -> None:
         loop = asyncio.new_event_loop()
-        self._loop = loop
-        asyncio.set_event_loop(loop)
-        self._loop_ready.set()
+        with self._instance_lock:
+            self._loop = loop
+            asyncio.set_event_loop(loop)
+            self._loop_ready.set()
         try:
             loop.run_forever()
         finally:
@@ -65,6 +96,11 @@ class AsyncWorker:
                 loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
             loop.run_until_complete(loop.shutdown_asyncgens())
             loop.close()
+            with self._instance_lock:
+                self._loop_ready.clear()
+                self._stopping = True
+
+
 class LangChainMCPTool(BaseTool):
     name: str
     description: str = "MCP tool"
@@ -74,6 +110,7 @@ class LangChainMCPTool(BaseTool):
         self.handle = handle
         self.name = handle.alias
         self.description = description
+        self._owned_worker = worker is None
         self.worker = worker or AsyncWorker()
 
     def _run(self, tool_input: str, run_manager=None):  # type: ignore[override]
@@ -89,6 +126,10 @@ class LangChainMCPTool(BaseTool):
         except KeyboardInterrupt:
             result.cancel()
             raise
+
+    def close(self) -> None:
+        if self._owned_worker:
+            self.worker.stop()
 
     async def _arun(self, tool_input: str, run_manager=None):  # type: ignore[override]
         req = ToolRequest(method="invoke", params={"input": tool_input})

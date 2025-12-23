@@ -76,3 +76,14 @@ def test_run_with_loop_other_thread():
         assert threading.active_count() <= before + 2
     finally:
         worker.stop()
+
+
+def test_tool_closes_owned_worker():
+    before = threading.active_count()
+    tool = LangChainMCPTool(FakeHandle("ok"))
+    try:
+        assert tool._run("owned") == "owned"
+        assert threading.active_count() <= before + 1
+    finally:
+        tool.close()
+    assert threading.active_count() <= before + 1
