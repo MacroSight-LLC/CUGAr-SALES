@@ -317,6 +317,8 @@ class AgentLoop:
             callbacks.insert(0, self.langfuse_handler)
 
         if state is not None and self.lifecycle_manager is not None:
+            # Centralize prompt enhancement at the stream entry point to avoid
+            # double mutations when controllers or callers also prepare state.
             state = self.lifecycle_manager.enhance_state_prompt(state)
 
         return self.graph.astream(

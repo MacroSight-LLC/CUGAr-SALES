@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, BaseMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from loguru import logger
 
 from cuga.backend.cuga_graph.nodes.api.api_planner_agent.prompts.load_prompt import ApiDescription
@@ -963,6 +963,7 @@ class AgentState(BaseModel):
     read_page: Optional[str] = ""  # The outer text of the page
     env_policy: List[dict] = Field(default_factory=list)
     tool_call: Optional[dict] = None
+    _enhanced_prompt_applied: bool = PrivateAttr(default=False)
 
     @property
     def variables_manager(self) -> 'StateVariablesManager':
