@@ -86,6 +86,34 @@ def test_langflow_generation_from_profile(tmp_path):
 
     servers = merged["mcpServers"]
     assert "langflow_trading" in servers
+    server = servers["langflow_trading"]
+    assert server["transport"] == "stdio"
+    assert server["command"] == "uvx"
+    assert "${LF_TRADING_PROJECT_ID}" in server["description"]
+    assert (
+        f"${{LF_SERVER:-http://localhost:7860}}/api/v1/mcp/project/${{LF_TRADING_PROJECT_ID}}/streamable"
+        in server["args"]
+    )
     args = servers["langflow_trading"]["args"]
     assert "${LF_API_KEY:?LF_API_KEY is required for prod services}" in args
     assert any("${LF_TRADING_PROJECT_ID}" in arg for arg in args)
+
+
+def test_langflow_generation_skipped_when_no_projects(tmp_path):
+    base = tmp_path / "base.yaml"
+    base.write_text("mcpServers: {}\nservices: []\n", encoding="utf-8")
+
+    merged_none = merge_registry.merge_fragments([base], langflow_prod_projects=None)
+    merged_empty = merge_registry.merge_fragments([base], langflow_prod_projects={})
+
+    assert all(not name.startswith("langflow_") for name in merged_none["mcpServers"])
+    assert all(not name.startswith("langflow_") for name in merged_empty["mcpServers"])
+
+
+def test_load_yaml_rejects_non_mapping(tmp_path):
+    path = tmp_path / "list.yaml"
+    path.write_text("- a\n- b\n", encoding="utf-8")
+
+    with pytest.raises(ValueError) as exc:
+        merge_registry._load_yaml(path)
+    assert "expected mapping at top level" in str(exc.value)

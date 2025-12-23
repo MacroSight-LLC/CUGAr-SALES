@@ -7,7 +7,7 @@ fragments = [
 ]
 output = "./build/mcp_servers.demo_power.yaml"
 
-[profiles.demo_power.langflow_prod_projects]
+[langflow_prod_projects]
 trading = "${LF_TRADING_PROJECT_ID}"
 music = "${LF_MUSIC_PROJECT_ID}"
 wordpress = "${LF_WORDPRESS_PROJECT_ID}"

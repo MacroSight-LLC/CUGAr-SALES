@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import tomllib
 import yaml
@@ -33,7 +33,7 @@ def load_profile(profile_name: str, profiles_dir: Path) -> Tuple[dict, Path]:
     if not isinstance(output, str) or not output:
         raise ValueError(f"Profile '{profile_name}' must define an 'output' path")
 
-    langflow_prod_projects = profile.get("langflow_prod_projects", {})
+    langflow_prod_projects = profile_data.get("langflow_prod_projects", profile.get("langflow_prod_projects", {}))
     if langflow_prod_projects is None:
         langflow_prod_projects = {}
     if not isinstance(langflow_prod_projects, dict):
@@ -85,15 +85,18 @@ def create_langflow_prod_config(project_id_env_var: str) -> Dict[str, Any]:
 def _load_yaml(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as f:
         try:
-            return yaml.safe_load(f) or {}
+            data = yaml.safe_load(f) or {}
         except yaml.YAMLError as err:
             raise ValueError(f"Invalid YAML in {path}: {err}") from err
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid YAML structure in {path}: expected mapping at top level")
+    return data
 
 
 def merge_fragments(
     fragment_paths: List[Path],
     *,
-    langflow_prod_projects: Dict[str, str] | None = None,
+    langflow_prod_projects: Optional[Dict[str, str]] = None,
 ) -> dict:
     merged_mcp_servers: Dict[str, Any] = {}
     merged_services: Dict[str, Any] = {}
