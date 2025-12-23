@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping
 
@@ -23,7 +24,8 @@ class ToolRegistry:
     def sandbox(self, profile: str) -> "ToolRegistry":
         """Return an isolated view for a single profile."""
 
-        return ToolRegistry({profile: dict(self._tools.get(profile, {}))})
+        profile_tools = self._tools.get(profile, {})
+        return ToolRegistry({profile: copy.deepcopy(profile_tools)})
 
     def resolve(self, profile: str, name: str) -> Dict[str, Any]:
         profile_tools = self._tools.get(profile, {})
@@ -35,14 +37,13 @@ class ToolRegistry:
         return dict(self._tools.get(profile, {}))
 
     def merge(self, other: "ToolRegistry") -> "ToolRegistry":
-        merged: Dict[str, Dict[str, Dict[str, Any]]] = {}
-        for source in (self._tools, other._tools):
-            for profile, tools in source.items():
-                merged.setdefault(profile, {})
-                for name, details in tools.items():
-                    if name in merged[profile]:
-                        raise ValueError(f"Conflict registering tool '{name}' for profile '{profile}'")
-                    merged[profile][name] = details
+        merged: Dict[str, Dict[str, Dict[str, Any]]] = {p: copy.deepcopy(t) for p, t in self._tools.items()}
+        for profile, tools in other._tools.items():
+            merged.setdefault(profile, {})
+            for name, details in tools.items():
+                if name in merged[profile]:
+                    raise ValueError(f"Conflict registering tool '{name}' for profile '{profile}'")
+                merged[profile][name] = copy.deepcopy(details)
         return ToolRegistry(merged)
 
     def profiles(self) -> set[str]:

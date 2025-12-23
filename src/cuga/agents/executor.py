@@ -30,7 +30,7 @@ class Executor:
             tool_entry = registry.resolve(context.profile, step.tool)
             handler = tool_entry["handler"]
             config = tool_entry.get("config", {})
-            result = handler(step.input, config=config, context=context)
+            result = handler(step.input, config=config.copy(), context=context)
             step_results.append({"step": step.name, "tool": step.tool, "result": result})
         final_output = step_results[-1]["result"] if step_results else None
         return ExecutionResult(steps=step_results, output=final_output)
