@@ -173,3 +173,65 @@ This document defines the contract.
 If your change violates it, the change is wrong.
 
 ---
+
+### 🧾 Commit Hygiene & CHANGELOG Rules
+
+> ✅ All contributors — human or automated — must follow the versioning and changelog discipline below.
+
+#### 🔢 Semantic Versioning
+
+We follow [Semantic Versioning 2.0.0](https://semver.org/):
+
+```
+MAJOR.MINOR.PATCH
+```
+
+* `MAJOR` – breaking changes to registry format, agent pipeline, or CLI usage
+* `MINOR` – new features, tools, modules, or interfaces
+* `PATCH` – bugfixes, documentation, tests, or refactors
+
+The current version lives in:
+
+```
+/VERSION.txt
+```
+
+#### 📝 CHANGELOG.md Updates (MANDATORY)
+
+For **every pull request or Codex auto-commit**, update `/CHANGELOG.md` under the correct version section:
+
+* ➕ **Added**: new modules, config keys, registry logic
+* 🔁 **Changed**: structure, default behavior, tool interfaces
+* 🐞 **Fixed**: bugs, parsing errors, test logic
+* 🧼 **Removed**: deprecated logic, legacy fragments
+
+Use clear bullet points. Prefix each entry with an emoji (`➕`, `🔁`, `🐞`, etc) and avoid vague labels.
+
+#### 🔁 Commit Format (Codex-Friendly)
+
+To ensure consistent version bumping by Codex agents, every commit must include:
+
+```
+[vX.Y.Z] {CHANGE_TYPE}: {SUMMARY}
+```
+
+✅ Example:
+
+```
+[v1.0.1] 🔁 Changed: registry now merges fragments using new path resolver
+[v1.1.0] ➕ Added: memory replay module + Langflow fallback handler
+```
+
+This allows Codex to:
+
+* Auto-tag releases
+* Generate release notes
+* Validate changelog parity with commits
+
+---
+
+📌 If you’re unsure: default to `PATCH`, and include a note in the changelog under `📝 Changed`.
+
+---
+
+## 🧾 Commit Hygiene & CHANGELOG Rules
