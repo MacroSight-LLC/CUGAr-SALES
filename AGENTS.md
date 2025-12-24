@@ -47,6 +47,7 @@ CUGAR follows a **strictly layered agent pipeline**. Each layer has a single res
 The following diagram represents the canonical execution path for all agents.
 
 ```
+
 plantuml
 @startuml
 actor User
@@ -64,7 +65,8 @@ Executor -> Registry: resolve(tool)
 Executor --> Controller: ExecutionResult
 Controller --> User: output + step log
 @enduml
-````
+
+```
 
 ---
 
@@ -73,7 +75,9 @@ Controller --> User: output + step log
 Profiles define **what an agent can do**. They live under:
 
 ```
+
 configurations/profiles/
+
 ```
 
 ### Key Rules
@@ -87,8 +91,10 @@ configurations/profiles/
 Profiles may define templated Langflow projects using:
 
 ```
+
 [profiles.<name>.langflow_prod_projects]
-```
+
+````
 
 Refer to `docs/registry_merge.md` for:
 
@@ -101,7 +107,7 @@ Refer to `docs/registry_merge.md` for:
 
 ```bash
 make profile-demo_power
-```
+````
 
 Generates:
 
@@ -125,12 +131,12 @@ set -a; source .env.mcp; set +a
 | ------------------------- | ---------------------------------------------------------------- |
 | `README.md`               | Project overview, quickstart, and environment setup              |
 | `AGENTS.md`               | (This file) Architecture, guardrails, and contributor entrypoint |
-| `docs/registry_merge.md`  | Registry assembly, conflict resolution, and templating           |
-| `docs/mcp_integration.md` | MCP protocol usage and integration patterns                      |
-| `docs/Security.md`        | Security expectations and secret‑handling policies               |
 | `docs/agent-core.md`      | Deep dive into the agent lifecycle and pipeline                  |
 | `docs/tools.md`           | Tool interfaces, scopes, and registration contracts              |
-| `docs/agent-config.md`    | Configuration keys, TOML structure, and env vars                 |
+| `docs/mcp_integration.md` | MCP protocol usage and integration patterns                      |
+| `docs/registry_merge.md`  | Registry assembly, conflict resolution, and templating           |
+| `docs/Security.md`        | Security expectations and secret‑handling policies               |
+| `docs/embedded_assets.md` | Embedded asset compression, runtime behavior, and deployment     |
 
 ---
 
@@ -174,11 +180,11 @@ If your change violates it, the change is wrong.
 
 ---
 
-### 🧾 Commit Hygiene & CHANGELOG Rules
+## 🧾 Commit Hygiene & CHANGELOG Rules
 
 > ✅ All contributors — human or automated — must follow the versioning and changelog discipline below.
 
-#### 🔢 Semantic Versioning
+### 🔢 Semantic Versioning
 
 We follow [Semantic Versioning 2.0.0](https://semver.org/):
 
@@ -196,7 +202,7 @@ The current version lives in:
 /VERSION.txt
 ```
 
-#### 📝 CHANGELOG.md Updates (MANDATORY)
+### 📝 CHANGELOG.md Updates (MANDATORY)
 
 For **every pull request or Codex auto-commit**, update `/CHANGELOG.md` under the correct version section:
 
@@ -207,7 +213,7 @@ For **every pull request or Codex auto-commit**, update `/CHANGELOG.md` under th
 
 Use clear bullet points. Prefix each entry with an emoji (`➕`, `🔁`, `🐞`, etc) and avoid vague labels.
 
-#### 🔁 Commit Format (Codex-Friendly)
+### 🔁 Commit Format (Codex-Friendly)
 
 To ensure consistent version bumping by Codex agents, every commit must include:
 
@@ -230,8 +236,4 @@ This allows Codex to:
 
 ---
 
-📌 If you’re unsure: default to `PATCH`, and include a note in the changelog under `📝 Changed`.
-
----
-
-## 🧾 Commit Hygiene & CHANGELOG Rules
+📌 If you’re unsure: default to `PATCH`, and include a note in the changelog under `🔁 Changed`.
