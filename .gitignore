@@ -15,6 +15,7 @@ docs/examples/demo_apps/email_mcp/mail_sink/buil
 *.egg-info/
 docs/examples/demo_apps/email_mcp/mail_sink/build
 docs/examples/demo_apps/email_mcp/mcp_server/build
+docs/examples/demo_apps/setup/build
 backup_*
 vendor
 logs/
