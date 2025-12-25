@@ -25,9 +25,11 @@ def get_sandbox(*, as_path: bool = False) -> str | Path:
 
 def load_payload() -> Dict[str, Any]:
     if "--json" in sys.argv:
+        idx = sys.argv.index("--json")
+        if idx + 1 >= len(sys.argv):
+            raise RequestError("Missing value for --json argument")
         try:
-            idx = sys.argv.index("--json") + 1
-            return json.loads(sys.argv[idx])
+            return json.loads(sys.argv[idx + 1])
         except Exception as exc:  # noqa: BLE001
             raise RequestError("Invalid JSON payload", details={"error": str(exc)}) from exc
     raw = sys.stdin.read().strip() or "{}"

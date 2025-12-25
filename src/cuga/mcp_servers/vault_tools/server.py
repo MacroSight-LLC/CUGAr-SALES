@@ -67,15 +67,19 @@ def _kv_path(base: Path) -> Path:
 
 @contextmanager
 def _lock_path(path: Path):
+    if fcntl is None:
+        raise RequestError(
+            "File locking is not supported on this platform",
+            type_="unsupported_platform",
+            details={"path": str(path)},
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a+", encoding="utf-8") as handle:
-        if fcntl:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
         try:
             yield handle
         finally:
-            if fcntl:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _read_store(handle) -> Dict[str, Any]:
@@ -85,14 +89,19 @@ def _read_store(handle) -> Dict[str, Any]:
         return {}
     try:
         return json.loads(content)
-    except Exception:  # noqa: BLE001
-        return {}
+    except json.JSONDecodeError as exc:
+        raise RequestError(
+            "KV store is corrupt",
+            type_="corrupt_store",
+            details={"path": handle.name, "error": str(exc)},
+        ) from exc
 
 
-def _write_store(path: Path, data: Dict[str, Any]) -> None:
-    tmp_path = path.with_suffix(".tmp")
-    tmp_path.write_text(json.dumps(data))
-    tmp_path.replace(path)
+def _write_store(handle, data: Dict[str, Any]) -> None:
+    handle.seek(0)
+    handle.truncate()
+    handle.write(json.dumps(data))
+    handle.flush()
 
 
 def _kv_store(params: Dict[str, Any], sandbox: Path) -> Dict[str, Any]:
@@ -110,7 +119,7 @@ def _kv_store(params: Dict[str, Any], sandbox: Path) -> Dict[str, Any]:
             return {"result": store.get(key)}
         value = params.get("value")
         store[key] = value
-        _write_store(store_path, store)
+        _write_store(handle, store)
         return {"result": value}
 
 

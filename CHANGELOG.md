@@ -54,6 +54,10 @@ All notable changes to the CUGAR Agent project will be documented in this file.
 - 🐞 Fixed: `extract_article` dependency fallback now respects missing `html` inputs
 - 🐞 Fixed: `moon_agents` no longer returns sandbox filesystem paths
 - 🐞 Fixed: `vault_tools` KV store now uses locked, atomic writes to avoid race conditions
+- 🐞 Fixed: `vault_tools` detects corrupt stores, enforces locking support, and writes under held locks
+- 🐞 Fixed: `extract_article` fallback parser only activates when HTML is provided, avoiding masked network errors
+- 🐞 Fixed: `_shared` CLI argument parsing now errors when `--json` is missing a value
+- 🐞 Fixed: `crypto_wallet` narrows `word_count` parsing errors to expected types
 - 🧪 Added: Expanded `scrape_tweets` test coverage for limits, dependencies, and health checks
 
 ---

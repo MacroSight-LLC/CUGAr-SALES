@@ -138,8 +138,10 @@ def _extract_article(params: Dict[str, Any]) -> Dict[str, Any]:
         extractor.feed(html_val)
         article = extractor.result()
     except Exception:
+        if html_val is None:
+            raise
         extractor = _SimpleHTMLExtractor()
-        extractor.feed(html_val or "")
+        extractor.feed(html_val)
         article = extractor.result()
     return {"article": asdict(article)}
 
