@@ -78,7 +78,7 @@ def _handle_operation(operation: str, params: Dict[str, Any]) -> Dict[str, Any]:
         word_count_raw = params.get("word_count", 12)
         try:
             word_count = int(word_count_raw)
-        except Exception as exc:  # noqa: BLE001
+        except (TypeError, ValueError) as exc:
             raise RequestError(
                 "'word_count' must be an integer",
                 type_="invalid_request",
