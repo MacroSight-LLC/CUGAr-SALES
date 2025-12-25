@@ -1,7 +1,7 @@
 import pytest
 
 from cuga.agents.executor import ExecutionContext, Executor
-from cuga.agents.planner import Planner, PlanStep
+from cuga.agents.planner import Planner, PlanStep, PlanningPreferences
 from cuga.agents.registry import ToolRegistry
 
 
@@ -12,10 +12,10 @@ def test_planner_deterministic_sorting():
     registry.register("alpha", "alpha_tool", lambda *_args, **_kwargs: None)
 
     planner = Planner()
-    plan = planner.plan("goal", registry)
+    planning_result = planner.plan("goal", registry)
 
-    assert plan[0].tool == "alpha_tool"
-    assert plan[0].input["profile"] == "alpha"
+    assert planning_result.steps[0].tool == "alpha_tool"
+    assert planning_result.steps[0].input["profile"] == "alpha"
 
 
 def test_toolregistry_sandbox_isolated_mutation():
@@ -29,15 +29,14 @@ def test_toolregistry_sandbox_isolated_mutation():
 
     sandboxed = registry.sandbox("profile")
 
-    # Mutating the sandboxed registry's config does not affect the original.
+    # Mutating resolved copies does not affect either registry instance.
     sandbox_tool = sandboxed.resolve("profile", "tool")
     sandbox_tool["config"]["value"] = 2
     assert registry.resolve("profile", "tool")["config"]["value"] == 1
 
-    # Mutating the original registry's config does not affect the sandbox.
     original_tool = registry.resolve("profile", "tool")
     original_tool["config"]["value"] = 3
-    assert sandboxed.resolve("profile", "tool")["config"]["value"] == 2
+    assert sandboxed.resolve("profile", "tool")["config"]["value"] == 1
 
 
 def test_toolregistry_sandbox_missing_profile_raises():
@@ -78,8 +77,8 @@ def test_toolregistry_merge_deep_independence_and_conflict_detection():
     registry_a.resolve("profile", "tool_a")["config"]["value"] = 100
     registry_b.resolve("profile", "tool_b")["config"]["value"] = 200
 
-    assert merged.resolve("profile", "tool_a")["config"]["value"] == 10
-    assert merged.resolve("profile", "tool_b")["config"]["value"] == 20
+    assert merged.resolve("profile", "tool_a")["config"]["value"] == 1
+    assert merged.resolve("profile", "tool_b")["config"]["value"] == 2
 
     conflict_a = ToolRegistry()
     conflict_b = ToolRegistry()

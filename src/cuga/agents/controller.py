@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict
 
 from .executor import ExecutionContext, ExecutionResult, Executor
-from .planner import Planner
+from .planner import Planner, PlanningPreferences
 from .registry import ToolRegistry
 
 
@@ -16,8 +16,15 @@ class Controller:
     executor: Executor
     registry: ToolRegistry
 
-    def run(self, goal: str, profile: str, *, metadata: Dict[str, Any] | None = None) -> ExecutionResult:
+    def run(
+        self,
+        goal: str,
+        profile: str,
+        *,
+        metadata: Dict[str, Any] | None = None,
+        preferences: PlanningPreferences | None = None,
+    ) -> ExecutionResult:
         sandboxed_registry = self.registry.sandbox(profile)
-        plan = self.planner.plan(goal, sandboxed_registry)
+        plan_result = self.planner.plan(goal, sandboxed_registry, preferences=preferences)
         context = ExecutionContext(profile=profile, metadata=metadata)
-        return self.executor.execute_plan(plan, sandboxed_registry, context)
+        return self.executor.execute_plan(plan_result.steps, sandboxed_registry, context, trace=plan_result.trace)

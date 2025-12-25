@@ -63,5 +63,8 @@ All notable changes to the CUGAR Agent project will be documented in this file.
 - 🐞 Fixed: `_shared.load_payload` narrows JSON parsing exceptions for clearer diagnostics
 - 🐞 Fixed: `extract_article` fallback parsing now only triggers for expected extraction or network failures
 - 🐞 Fixed: Tool registry now deep-copies resolved entries and profile snapshots to prevent caller mutations from leaking between tools
+- ➕ Added: CLI for listing agents, running goals, and exporting structured results
+- ➕ Added: External tool plugin system with discovery helpers and a template plugin example
+- 🔁 Changed: Planner now builds multi-step plans with cost/latency optimization, logging, and trace outputs
 
 ---

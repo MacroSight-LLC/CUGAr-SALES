@@ -20,12 +20,15 @@ class ExecutionContext:
 class ExecutionResult:
     steps: List[Dict[str, Any]]
     output: Any | None = None
+    trace: List[str] | None = None
 
 
 class Executor:
     """Executes a plan using tools from an isolated registry view."""
 
-    def execute_plan(self, plan: Iterable[PlanStep], registry: ToolRegistry, context: ExecutionContext) -> ExecutionResult:
+    def execute_plan(
+        self, plan: Iterable[PlanStep], registry: ToolRegistry, context: ExecutionContext, trace: List[str] | None = None
+    ) -> ExecutionResult:
         step_results: List[Dict[str, Any]] = []
         for step in plan:
             tool_entry = registry.resolve(context.profile, step.tool)
@@ -34,4 +37,4 @@ class Executor:
             result = handler(step.input, config=copy.deepcopy(config), context=context)
             step_results.append({"step": step.name, "tool": step.tool, "result": result})
         final_output = step_results[-1]["result"] if step_results else None
-        return ExecutionResult(steps=step_results, output=final_output)
+        return ExecutionResult(steps=step_results, output=final_output, trace=trace or [])

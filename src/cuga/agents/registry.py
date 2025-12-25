@@ -14,6 +14,9 @@ class ToolEntry(TypedDict):
 
     handler: ToolCallable
     config: Dict[str, Any]
+    cost: float
+    latency: float
+    description: str | None
 
 
 @dataclass
@@ -22,11 +25,27 @@ class ToolRegistry:
 
     _tools: Dict[str, Dict[str, ToolEntry]] = field(default_factory=dict)
 
-    def register(self, profile: str, name: str, handler: ToolCallable, *, config: Mapping[str, Any] | None = None) -> None:
+    def register(
+        self,
+        profile: str,
+        name: str,
+        handler: ToolCallable,
+        *,
+        config: Mapping[str, Any] | None = None,
+        cost: float | int = 1.0,
+        latency: float | int = 1.0,
+        description: str | None = None,
+    ) -> None:
         profile_tools = self._tools.setdefault(profile, {})
         if name in profile_tools:
             raise ValueError(f"Tool '{name}' already registered for profile '{profile}'")
-        profile_tools[name] = {"handler": handler, "config": copy.deepcopy(dict(config or {}))}
+        profile_tools[name] = {
+            "handler": handler,
+            "config": copy.deepcopy(dict(config or {})),
+            "cost": float(cost),
+            "latency": float(latency),
+            "description": description,
+        }
 
     def sandbox(self, profile: str) -> "ToolRegistry":
         """Return an isolated view for a single profile."""
