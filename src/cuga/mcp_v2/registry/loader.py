@@ -1,15 +1,15 @@
-"""YAML-driven MCP registry loader (vertical slice)."""
+"""Hydra/OmegaConf-driven MCP registry loader (vertical slice)."""
 
 from __future__ import annotations
 
-import copy
 import os
 from pathlib import Path
-from typing import Any, Iterable, Mapping, MutableMapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
-import yaml
+from omegaconf import DictConfig, OmegaConf
 
-from .errors import RegistryLoadError, RegistryMergeError, RegistryValidationError
+from .config_loader import load_registry_config
+from .errors import RegistryMergeError, RegistryValidationError
 from .models import MCPServerDefinition, MCPToolDefinition
 from .snapshot import RegistrySnapshot
 
@@ -29,6 +29,8 @@ def _coerce_bool(value: Any, *, default: bool = True) -> bool:
 
 def _env_enabled(entry: Mapping[str, Any], env: Mapping[str, str], *, default: bool = True) -> bool:
     enabled = _coerce_bool(entry.get("enabled"), default=default)
+    if not enabled:
+        return False
     env_key = entry.get("enabled_env")
     if env_key is None:
         return enabled
@@ -38,46 +40,6 @@ def _env_enabled(entry: Mapping[str, Any], env: Mapping[str, str], *, default: b
     return env_val.strip().lower() in _BOOL_TRUE
 
 
-def _load_yaml(path: Path) -> MutableMapping[str, Any]:
-    if not path.exists():
-        raise RegistryLoadError(f"Registry file not found: {path}")
-    try:
-        document = yaml.safe_load(path.read_text())
-    except yaml.YAMLError as exc:  # pragma: no cover - defensive
-        raise RegistryValidationError(f"Invalid YAML in {path}: {exc}") from exc
-    if document is None:
-        return {}
-    if not isinstance(document, MutableMapping):
-        raise RegistryValidationError(f"Registry at {path} must be a mapping")
-    return document
-
-
-def _parse_fragments(document: Mapping[str, Any], base_path: Path) -> Sequence[Path]:
-    fragments = document.get("fragments", [])
-    if fragments is None:
-        return []
-    if not isinstance(fragments, Sequence) or isinstance(fragments, (str, bytes)):
-        raise RegistryValidationError("fragments must be a list of file paths")
-    resolved: list[Path] = []
-    for fragment in fragments:
-        if not isinstance(fragment, str):
-            raise RegistryValidationError("fragment entries must be strings")
-        resolved.append((base_path.parent / fragment).resolve())
-    return resolved
-
-
-def _resolve_documents(entry_path: Path, *, seen: set[Path] | None = None) -> list[tuple[Path, MutableMapping[str, Any]]]:
-    seen = seen or set()
-    if entry_path in seen:
-        raise RegistryMergeError(f"Cycle detected while loading registry fragments: {entry_path}")
-    seen.add(entry_path)
-    document = _load_yaml(entry_path)
-    docs: list[tuple[Path, MutableMapping[str, Any]]] = [(entry_path, document)]
-    for fragment_path in _parse_fragments(document, entry_path):
-        docs.extend(_resolve_documents(fragment_path, seen=seen))
-    return docs
-
-
 def _parse_tool(name: str, raw: Mapping[str, Any], env: Mapping[str, str]) -> MCPToolDefinition:
     if not isinstance(raw, Mapping):
         raise RegistryValidationError(f"Tool '{name}' must be a mapping")
@@ -85,6 +47,10 @@ def _parse_tool(name: str, raw: Mapping[str, Any], env: Mapping[str, str]) -> MC
     operation_id = raw.get("operation_id")
     method = raw.get("method")
     path = raw.get("path")
+    if method is not None and not isinstance(method, str):
+        raise RegistryValidationError(f"Tool '{name}' method must be a string when provided")
+    if path is not None and not isinstance(path, str):
+        raise RegistryValidationError(f"Tool '{name}' path must be a string when provided")
     if operation_id is None and (method is None or path is None):
         raise RegistryValidationError(
             f"Tool '{name}' must provide an operation_id or both method and path",
@@ -135,20 +101,22 @@ def _merge_servers(documents: Iterable[tuple[Path, Mapping[str, Any]]], env: Map
     merged: list[MCPServerDefinition] = []
     seen: dict[str, Path] = {}
     for source_path, document in documents:
+        if isinstance(document, DictConfig):
+            document = OmegaConf.to_container(document, resolve=True)  # type: ignore[assignment]
         servers_block = document.get("servers", {})
         if servers_block is None:
             continue
         if not isinstance(servers_block, Mapping):
             raise RegistryValidationError(f"servers block in {source_path} must be a mapping")
         for name, raw_server in servers_block.items():
-            if name in seen:
-                raise RegistryMergeError(
-                    f"Duplicate server '{name}' in {source_path} conflicts with entry from {seen[name]}",
-                )
             server = _parse_server(name, raw_server, env)
             if server.enabled:
+                if name in seen:
+                    raise RegistryMergeError(
+                        f"Duplicate server '{name}' in {source_path} conflicts with entry from {seen[name]}",
+                    )
                 merged.append(server)
-            seen[name] = source_path
+                seen[name] = source_path
     return tuple(merged)
 
 
@@ -167,8 +135,8 @@ def load_mcp_registry_snapshot(
     if not raw_path:
         return RegistrySnapshot.empty()
     resolved_path = Path(raw_path).expanduser().resolve()
-    documents = _resolve_documents(resolved_path)
-    servers = _merge_servers(copy.deepcopy(documents), env)
+    documents = load_registry_config(resolved_path)
+    servers = _merge_servers(documents, env)
     sources = tuple(path for path, _ in documents)
     return RegistrySnapshot(servers=servers, sources=sources)
 
