@@ -31,9 +31,11 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 🔁 Changed: Reconciled agent lifecycle, tooling, and security documentation with current code enforcement boundaries
 - 🔁 Changed: Guardrail routing updated so root `AGENTS.md` remains canonical with per-directory inherit markers
 - 🔁 Changed: Guardrail verification now centralizes allowlists/keywords and supports env overrides to reduce drift
+- 🔁 Changed: Guardrail verification now tracks `config/` with inheritance markers to cover Hydra registry defaults
 - 🔁 Changed: Pytest default discovery now targets `tests/`, with docs/examples suites run through dedicated scripts and build artifacts ignored by default
 - 🔁 Changed: Pytest `norecursedirs` now retains default exclusions (e.g., `.*`, `venv`, `dist`, `*.egg`) to avoid unintended test discovery
 - 🔁 Changed: LLM adapter can run atop LiteLLM by default with hardened retries, fallback error handling, and thread-safe budget warnings
+- 🔁 Changed: MCP registry loader now uses Hydra's `compose` API for Hydra/OmegaConf configuration composition with shared config defaults and fragment support
 
 ### Fixed
 - 🐞 Fixed: Hardened `crypto_wallet` parameter parsing and clarified non-production security posture
@@ -48,10 +50,12 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 🐞 Fixed: `extract_article` fallback parsing now only triggers for expected extraction or network failures
 - 🐞 Fixed: Guardrail checker git diff detection now validates git refs and uses fixed git diff argv to avoid unchecked subprocess input
 - 🐞 Fixed: Tier table generation now falls back to env keys for non-placeholder values to avoid leaking secrets in docs
+- 🐞 Fixed: MCP registry loader enforces enabled-aware duplicate detection, method/path type validation (including `operation_id`), and environment variables that override disabled entries when set
 
 ### Documentation
 - 📚 Documented: Branch cleanup workflow and issue stubs for consolidating Codex branches
 - 📚 Documented: Root guardrails, audit expectations, and routing table for guardrail updates
+- 📚 Documented: Hydra-based registry composition (env overrides, enabled-only duplicate detection) and linked MCP integration guidance
 - 📚 Documented: Refined canonical `AGENTS.md` with quick checklist, local template, and cross-links to policy docs
 - 📚 Documented: Architecture topology (controller/planner/tool bus), orchestration modes, and observability enhancements
 - 📚 Documented: STRIDE-lite threat model and red-team checklist covering sandbox escape, prompt injection, and leakage tests

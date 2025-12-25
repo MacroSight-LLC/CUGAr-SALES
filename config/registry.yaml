@@ -1,0 +1,13 @@
+defaults:
+  - _self_
+  - optional: server_fragments/local
+
+servers:
+  sample_echo:
+    url: ${oc.env:SAMPLE_ECHO_URL, "http://localhost:8088"}
+    enabled: true
+    enabled_env: SAMPLE_ECHO_ENABLED
+    tools:
+      - name: echo
+        description: Echo input payloads
+        operation_id: echo
