@@ -26,13 +26,13 @@ def _merge_entry(defaults: Dict, entry: Dict) -> Dict:
 
 def _auth_env(env: Dict) -> str:
     keys: List[str] = []
-    for val in env.values():
+    for key, val in env.items():
         if isinstance(val, str):
             matches = ENV_PATTERN.findall(val)
             if matches:
                 keys.extend(matches)
             else:
-                keys.append(val.split(":", 1)[0] if ":" in val else val)
+                keys.append(key)
     deduped = sorted(dict.fromkeys(k for k in keys if k))
     return ", ".join(deduped) if deduped else "none"
 
