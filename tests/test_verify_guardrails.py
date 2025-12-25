@@ -122,3 +122,98 @@ def test_custom_keyword_env_allows_additional_terms(tmp_path: Path, monkeypatch:
     errors = vg.run_checks(changed_files=["docs/guide.md"])
 
     assert errors == []
+
+
+def test_missing_changelog_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_repo(tmp_path, monkeypatch)
+    write_allowlisted_dirs(tmp_path)
+    write_root_agents(tmp_path)
+
+    errors = vg.run_checks(changed_files=[])
+
+    assert any("CHANGELOG.md is missing" in err for err in errors)
+
+
+def test_changelog_without_vnext_heading_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_repo(tmp_path, monkeypatch)
+    write_allowlisted_dirs(tmp_path)
+    write_root_agents(tmp_path)
+    write_changelog(tmp_path, content="""## v1.0.0\n- baseline\n""")
+
+    errors = vg.run_checks(changed_files=[])
+
+    assert any("must contain a '## vNext' section" in err for err in errors)
+
+
+def test_changelog_with_empty_vnext_body_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_repo(tmp_path, monkeypatch)
+    write_allowlisted_dirs(tmp_path)
+    write_root_agents(tmp_path)
+    write_changelog(tmp_path, content="""## vNext\n## v1.0.0\n- baseline\n""")
+
+    errors = vg.run_checks(changed_files=[])
+
+    assert any("Unable to parse '## vNext' section" in err for err in errors)
+
+
+def test_changelog_with_duplicate_vnext_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_repo(tmp_path, monkeypatch)
+    write_allowlisted_dirs(tmp_path)
+    write_root_agents(tmp_path)
+    write_changelog(tmp_path, content="""## vNext\n- change\n## vNext\n- another\n""")
+
+    errors = vg.run_checks(changed_files=[])
+
+    assert any("Unable to parse '## vNext' section" in err for err in errors)
+
+
+def test_local_agents_requires_inherit_phrase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_repo(tmp_path, monkeypatch)
+    write_root_agents(tmp_path)
+    write_changelog(tmp_path)
+    write_allowlisted_dirs(tmp_path)
+
+    local_agents = tmp_path / "docs" / "AGENTS.md"
+    local_agents.write_text("Custom guardrails", encoding="utf-8")
+
+    errors = vg.run_checks(changed_files=[])
+
+    assert any("inheritance" in err.lower() for err in errors)
+
+
+def test_main_reports_failures(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setattr(vg, "run_checks", lambda base=None: ["FAIL: missing"])
+
+    exit_code = vg.main([])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "Guardrail verification failed" in captured.out
+    assert "FAIL" in captured.out
+
+
+def test_main_reports_success(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setattr(vg, "run_checks", lambda base=None: [])
+
+    exit_code = vg.main([])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Guardrail verification passed" in captured.out
+
+
+def test_env_overrides_respected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GUARDRAILS_ALLOWLISTED_DIRS", "custom")
+    monkeypatch.setenv("GUARDRAILS_GUARDED_PREFIXES", "special/")
+    monkeypatch.setattr(vg, "CONFIG", vg.GuardrailConfig.from_env())
+    configure_repo(tmp_path, monkeypatch)
+    write_root_agents(tmp_path)
+    write_changelog(tmp_path, content="""## vNext\n- minor update\n## v1.0.0\n- baseline\n""")
+
+    custom_dir = tmp_path / "custom"
+    custom_dir.mkdir(parents=True)
+
+    errors = vg.run_checks(changed_files=["special/file.txt"])
+
+    assert any("custom" in err for err in errors)
+    assert any("CHANGELOG" in err for err in errors)

@@ -48,7 +48,7 @@ REQUIRED_SECTIONS = [
     "## 7. Verification & No Conflicting Guardrails",
 ]
 CANONICAL_INHERIT_PHRASE = "This directory inherits from root `AGENTS.md` (canonical). Conflicts resolve to root."
-SAFE_GIT_REF_PATTERN = re.compile(r"^[A-Za-z0-9._/\-]+$")
+SAFE_GIT_REF_PATTERN = re.compile(r"^(?!-)[A-Za-z0-9._/\-]+$")
 
 
 def _csv_env(var: str, default: List[str]) -> List[str]:
@@ -121,6 +121,11 @@ def ensure_routing_markers() -> List[str]:
             continue
         local_agents = directory / "AGENTS.md"
         if local_agents.exists():
+            content = read_text(local_agents)
+            if CANONICAL_INHERIT_PHRASE.lower() not in content.lower():
+                errors.append(
+                    f"{local_agents} must declare inheritance from root AGENTS.md"
+                )
             continue
         if not _has_inherit_marker(directory):
             errors.append(
@@ -141,11 +146,16 @@ def ensure_no_conflicting_canonical() -> List[str]:
 
 
 def _extract_vnext(changelog_text: str) -> Optional[str]:
-    match = re.search(r"##\s*vNext\s*(.*?)\n##\s*", changelog_text, flags=re.IGNORECASE | re.DOTALL)
-    if match:
-        return match.group(1)
-    match = re.search(r"##\s*vNext\s*(.*)", changelog_text, flags=re.IGNORECASE | re.DOTALL)
-    return match.group(1) if match else None
+    matches = list(re.finditer(r"##\s*vNext\b", changelog_text, flags=re.IGNORECASE))
+    if not matches or len(matches) > 1:
+        return None
+    match = matches[0]
+    start = match.end()
+    remainder = changelog_text[start:]
+    next_heading = re.search(r"\n##\s+", remainder)
+    body = remainder[: next_heading.start()] if next_heading else remainder
+    body = body.strip()
+    return body or None
 
 
 def ensure_changelog(changed_files: Sequence[str]) -> List[str]:
