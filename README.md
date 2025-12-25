@@ -16,11 +16,16 @@ Building a domain-specific enterprise agent from scratch is complex and requires
 [![Status](https://shields.io/badge/Status-Active-success?logo=checkmarx&style=for-the-badge)]()
 [![Documentation](https://shields.io/badge/Documentation-Available-blue?logo=gitbook&style=for-the-badge)](https://docs.cuga.dev)
 [![Discord](https://shields.io/badge/Discord-Join-blue?logo=discord&style=for-the-badge)](https://discord.gg/aH6rAEEW)
+[![Tests](https://github.com/TylrDn/cugar-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/TylrDn/cugar-agent/actions/workflows/tests.yml)
+[![Lint](https://github.com/TylrDn/cugar-agent/actions/workflows/lint.yml/badge.svg)](https://github.com/TylrDn/cugar-agent/actions/workflows/lint.yml)
 
 [![AppWorld](https://img.shields.io/badge/%F0%9F%A5%87%20%231%20on-AppWorld-gold?style=for-the-badge)](https://appworld.dev/leaderboard)
 [![WebArena](https://img.shields.io/badge/Top--tier%20on-WebArena-silver?style=for-the-badge)](https://docs.google.com/spreadsheets/d/1M801lEpBbKSNwP-vDBkC_pF7LdyGU1f_ufZb_NWNBZQ/edit?gid=0#gid=0)
 
 </div>
+
+
+> Quick links: [Usage](USAGE.md) · [Testing](TESTING.md) · [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Security](SECURITY.md)
 
 
 ## Why CUGAr?
@@ -226,6 +231,13 @@ uvx --from git+https://github.com/cuga-project/cuga-agent.git#subdirectory=docs/
 ```
 
 These commands pull in the demo-only dependencies without affecting the core installation.
+
+### Documentation map
+- [Usage guide](USAGE.md): running the CLI, switching model profiles, and troubleshooting common demos.
+- [Testing guide](TESTING.md): guardrail verification, linting, and pytest suites.
+- [Architecture overview](docs/architecture/overview.md): controller → planner → executor topology.
+- [Agent core](docs/AGENT-CORE.md): component responsibilities across `src/cuga/agents/`.
+- [Security](SECURITY.md) and [docs/SECURITY.md](docs/SECURITY.md): safe defaults, sandbox reminders, and reporting guidance.
 
 <details>
 <summary>🤖 LLM Configuration - Advanced Options</summary>
