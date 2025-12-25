@@ -216,6 +216,21 @@ cuga viz
 
 ```
 
+### Optional demo apps (uv)
+
+Demo apps under `docs/examples/demo_apps/` are optional and not installed by default. To install their dependencies and launch
+the helpers with `uv`:
+
+```bash
+# From the repo root, with your virtualenv active
+uv run --directory docs/examples/demo_apps/setup create-cuga-demo --cache
+
+# Or fetch the helper without cloning (uvx will download into a temp env)
+uvx --from git+https://github.com/cuga-project/cuga-agent.git#subdirectory=docs/examples/demo_apps/setup create-cuga-demo --cache
+```
+
+These commands pull in the demo-only dependencies without affecting the core installation.
+
 <details>
 <summary>🤖 LLM Configuration - Advanced Options</summary>
 

@@ -5,13 +5,14 @@ This root `AGENTS.md` is the **canonical authority** for the entire repository. 
 ---
 
 ## Quick editing checklist
+This checklist is the single source of truth for routing related updates; follow the referenced paths when making changes.
 | When you change… | Also update… |
 | --- | --- |
 | Guardrails | `CHANGELOG.md` (`## vNext`), `.github/workflows/guardrails.yml`, affected `AGENTS.md` files |
 | Tool registry semantics | `docs/registry*.md`, `scripts/verify_guardrails.py`, `AGENTS.md` |
-| Audit/trace behavior | `docs/audit_and_trace.md`, `SECURITY.md`, CI retention notes |
+| Audit/trace behavior | `docs/audit_and_trace.md`, `SECURITY.md`, `.github/workflows/stability-tests.yml` (artifact retention) |
 | Profiles | `docs/profiles.md`, profile manifests, `AGENTS.md` |
-| CI or safety policy | `docs/tool_safety.md`, `SECURITY.md`, `CHANGELOG.md` |
+| CI or safety policy | `docs/tool_safety.md`, `SECURITY.md`, `CHANGELOG.md`, `.github/workflows/ci.yml` (and related CI workflows) |
 
 ## 1. Scope & Precedence
 **Purpose:** keep one source of truth and avoid conflicting guardrails.
