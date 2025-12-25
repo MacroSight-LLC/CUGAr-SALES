@@ -21,6 +21,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - ➕ Added: Expanded guardrail verification script (`scripts/verify_guardrails.py`), inheritance markers, and CI enforcement
 - ➕ Added: Dual-mode LLM adapter layer with hybrid routing, budget guardrails, and config/env precedence
 - ➕ Added: Architecture/registry observability documentation set (overview, registry, tiers, sandboxes, compose, ADR, glossary)
+- ➕ Added: MCP v2 registry slice with immutable snapshot models, YAML loader, and offline contract tests
 
 ### Changed
 - 🔁 Changed: Centralized MCP server utilities for payload handling and sandbox lookup
