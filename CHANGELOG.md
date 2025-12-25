@@ -59,10 +59,12 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 📚 Documented: Refined canonical `AGENTS.md` with quick checklist, local template, and cross-links to policy docs
 - 📚 Documented: Architecture topology (controller/planner/tool bus), orchestration modes, and observability enhancements
 - 📚 Documented: STRIDE-lite threat model and red-team checklist covering sandbox escape, prompt injection, and leakage tests
+- 📚 Documented: Usage and testing quick-start guides plus repository Code of Conduct and security policy
 
 ### Testing
 - 🧪 Added: Expanded `scrape_tweets` test coverage for limits, dependencies, and health checks
 - 🧪 Added: Offline MCP registry, runner, and planner/executor tests backed by FastAPI mock servers
+- 🧪 Added: Dedicated lint workflow running Ruff and guardrail verification on pushes and pull requests
 
 ---
 
