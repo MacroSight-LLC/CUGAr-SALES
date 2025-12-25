@@ -42,6 +42,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 🐞 Fixed: `_shared.load_payload` narrows JSON parsing exceptions for clearer diagnostics
 - 🐞 Fixed: `extract_article` fallback parsing now only triggers for expected extraction or network failures
 - 🐞 Fixed: Guardrail checker git diff detection now validates git refs and uses fixed git diff argv to avoid unchecked subprocess input
+- 🐞 Fixed: Tier table generation now falls back to env keys for non-placeholder values to avoid leaking secrets in docs
 
 ### Documentation
 - 📚 Documented: Branch cleanup workflow and issue stubs for consolidating Codex branches
