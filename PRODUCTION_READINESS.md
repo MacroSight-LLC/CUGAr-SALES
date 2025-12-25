@@ -8,6 +8,7 @@ This checklist ensures the CUGAR Agent system is hardened, documented, and versi
 
 - [x] `/src/` has modular structure (`agents`, `mcp`, `tools`, `config`)
 - [x] `/docs/` contains architecture, security, integration, and tooling references
+- [x] `/config/` stores Hydra-composed registry defaults and fragment overrides with inheritance markers
 - [x] `/tests/` directory exists with core coverage
 - [x] `/examples/` directory demonstrates agent usage
 
@@ -39,7 +40,7 @@ This checklist ensures the CUGAR Agent system is hardened, documented, and versi
 - [x] `AGENT-CORE.md` – agent lifecycle, pipeline
 - [x] `TOOLS.md` – structure, schema, usage
 - [x] `MCP_INTEGRATION.md` – tool bus and lifecycle
-- [x] `REGISTRY_MERGE.md` – profile fragment handling
+- [x] `REGISTRY_MERGE.md` – Hydra-based registry fragment handling and enablement rules
 - [x] `SECURITY.md` – production secret handling
 - [x] `EMBEDDED_ASSETS.md` – compression and distribution
 

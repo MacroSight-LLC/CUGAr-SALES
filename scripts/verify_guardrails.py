@@ -23,6 +23,7 @@ ROOT_AGENTS = REPO_ROOT / "AGENTS.md"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 DEFAULT_ALLOWLISTED_DIRS = [
     "configurations",
+    "config",
     "docs",
     "src",
     ".github",
@@ -35,6 +36,7 @@ DEFAULT_GUARDED_PATH_PREFIXES = [
     ".github/",
     "scripts/",
     "configurations/",
+    "config/",
 ]
 DEFAULT_VNEXT_KEYWORDS = ["guardrail", "audit", "registry", "ci", "safety", "policy", "verification"]
 INHERIT_MARKER = "Root guardrails apply as-is; no directory-specific overrides."

@@ -31,6 +31,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 🔁 Changed: Reconciled agent lifecycle, tooling, and security documentation with current code enforcement boundaries
 - 🔁 Changed: Guardrail routing updated so root `AGENTS.md` remains canonical with per-directory inherit markers
 - 🔁 Changed: Guardrail verification now centralizes allowlists/keywords and supports env overrides to reduce drift
+- 🔁 Changed: Guardrail verification now tracks `config/` with inheritance markers to cover Hydra registry defaults
 - 🔁 Changed: Pytest default discovery now targets `tests/`, with docs/examples suites run through dedicated scripts and build artifacts ignored by default
 - 🔁 Changed: Pytest `norecursedirs` now retains default exclusions (e.g., `.*`, `venv`, `dist`, `*.egg`) to avoid unintended test discovery
 - 🔁 Changed: LLM adapter can run atop LiteLLM by default with hardened retries, fallback error handling, and thread-safe budget warnings
@@ -54,6 +55,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 ### Documentation
 - 📚 Documented: Branch cleanup workflow and issue stubs for consolidating Codex branches
 - 📚 Documented: Root guardrails, audit expectations, and routing table for guardrail updates
+- 📚 Documented: Hydra-based registry composition (env overrides, enabled-only duplicate detection) and linked MCP integration guidance
 - 📚 Documented: Refined canonical `AGENTS.md` with quick checklist, local template, and cross-links to policy docs
 - 📚 Documented: Architecture topology (controller/planner/tool bus), orchestration modes, and observability enhancements
 - 📚 Documented: STRIDE-lite threat model and red-team checklist covering sandbox escape, prompt injection, and leakage tests

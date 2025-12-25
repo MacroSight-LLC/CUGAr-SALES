@@ -90,6 +90,14 @@ CUGA_MCP_CONFIG=/path/to/mcp_config.toml
 CUGA_MCP__TOOLS__ECHO__COMMAND=/custom/python
 ```
 
+### Registry Snapshot (Hydra YAML)
+
+- MCP v2 registry entries live under `config/registry.yaml` with optional fragments referenced via Hydra defaults.
+- Composition runs through `hydra.compose` inside `cuga.mcp_v2.registry.config_loader`, preserving env interpolation via `${oc.env:VAR,default}`.
+- `_env_enabled` lets environment variables override `enabled: false` flags when present, and duplicate detection only applies to enabled servers.
+- Tool routes are validated for string `operation_id`/`method`/`path` fields; one of `operation_id` or (`method` + `path`) is required.
+- See `docs/REGISTRY_MERGE.md` for merge semantics and troubleshooting.
+
 ---
 
 ## 🔁 MCP Tool Lifecycle
