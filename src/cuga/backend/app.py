@@ -16,17 +16,30 @@ planner = Planner()
 coordinator = Coordinator([Worker("w1"), Worker("w2")])
 registry = Registry(registry_path)
 
-EXPECTED_TOKEN = os.environ.get("AGENT_TOKEN")
-if not EXPECTED_TOKEN:
-    raise RuntimeError("AGENT_TOKEN not configured")
+
+def get_expected_token() -> str:
+    token = os.environ.get("AGENT_TOKEN")
+    if token is None:
+        raise RuntimeError("AGENT_TOKEN not configured")
+    return token
 
 app = FastAPI(title="Cuga Backend")
 
 
+@app.on_event("startup")
+def validate_agent_token():
+    get_expected_token()
+
+
 @app.middleware("http")
 async def budget_guard(request, call_next):
+    try:
+        expected_token = get_expected_token()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
     token = request.headers.get("X-Token")
-    if not secrets.compare_digest(token or "", EXPECTED_TOKEN):
+    if not secrets.compare_digest(token or "", expected_token):
         raise HTTPException(status_code=401, detail="unauthorized")
     ceiling = int(os.environ.get("AGENT_BUDGET_CEILING", "100"))
     spent = int(request.headers.get("X-Budget-Spent", "0"))
