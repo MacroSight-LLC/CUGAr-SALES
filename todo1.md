@@ -2,7 +2,7 @@
 
 ## Governance & Guardrails
 - Align root `AGENTS.md` guardrails with current tool allowlist/denylist, escalation ceilings, redaction rules, and budget caps before enabling Tier 1 defaults.
-- Add automated guardrail verification for any new planner/worker/coordinator interfaces and update tests accordingly.
+- Maintain the guardrail CI gate so registry/AGENTS edits fail unless `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, and `todo1.md` reflect the change and `scripts/verify_guardrails.py` passes.
 - Document any adjustments to guardrails in `CHANGELOG.md` under `## vNext` alongside test updates.
 - Keep README, PRODUCTION readiness notes, and security docs synchronized with guardrail and registry expectations; capture new follow-ups in this list whenever guardrails shift.
 

@@ -69,7 +69,7 @@ uv run python examples/run_langgraph_demo.py --goal "triage a support ticket"
 
 ## Guardrails & Change Management
 - Review [AGENTS.md](AGENTS.md) before altering planners, tools, or registry entries; it is the single source of truth for allowlists, sandbox expectations, budgets, and redaction.
-- After touching guardrails or registry fragments, run `python scripts/verify_guardrails.py` and update `CHANGELOG.md` under `## vNext` plus `todo1.md` with any new follow-ups.
+- Guardrail and registry changes are enforced by CI: `scripts/verify_guardrails.py --base <branch>` collects diffs and fails if `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, or `todo1.md` are not updated alongside guardrail changes or if `## vNext` lacks a guardrail note.
 - Keep production checklists ([PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)) and security docs in sync with guardrail adjustments so downstream users understand the default policies and where to override them.
 
 ## Agent Types

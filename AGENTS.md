@@ -37,7 +37,7 @@
 - Config changes MUST update tests and docs in the same PR; env parsing MUST clamp `PLANNER_MAX_STEPS` to 1..50 and `MODEL_TEMPERATURE` to 0..2 with warnings on invalid values.
 - Edit `AGENTS.md` first when modifying guardrails; update `CHANGELOG.md` (`## vNext`) with summary and keep migration notes current for breaking changes.
 - Document registry and sandbox guardrail adjustments in `CHANGELOG.md` alongside updated tests.
-- Keep contributor-facing docs synchronized with guardrail expectations: refresh README/PRODUCTION readiness notes and the repo to-do tracker (`todo1.md`) when altering registry allowlists, budgets, or redaction policies. Run `python scripts/verify_guardrails.py` after every guardrail or registry edit and capture any new follow-ups in the to-do list.
+- Keep contributor-facing docs synchronized with guardrail expectations: refresh README/PRODUCTION readiness notes and the repo to-do tracker (`todo1.md`) when altering registry allowlists, budgets, or redaction policies. Guardrail/registry diffs now fail CI unless `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, and `todo1.md` are updated in the same PR and `scripts/verify_guardrails.py --base <ref>` passes locally.
 
 ## 7. Verification & No Conflicting Guardrails
 - Tests MUST assert planner does not return all tools blindly; vector scores correlate with similarity and are ordered.
