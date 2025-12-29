@@ -38,7 +38,7 @@ Policy and change-management guardrails are maintained in [AGENTS.md](AGENTS.md)
                             └────────────────┘                   └──────────┘
 ```
 
-For a role-by-role, mode-aware walkthrough of how the controller, planners, executors, and MCP tool packs fit together (plus configuration keys), see [docs/agents/architecture.md](docs/agents/architecture.md).
+For a role-by-role, mode-aware walkthrough of how the controller, planners, executors, and MCP tool packs fit together (plus configuration keys), see [docs/agents/architecture.md](docs/agents/architecture.md). For an MCP + LangChain web stack overview that covers the FastAPI backend, Vue 3 frontend, streaming flows, and configuration surfaces, see [docs/MCP_LANGCHAIN_OVERVIEW.md](docs/MCP_LANGCHAIN_OVERVIEW.md).
 
 ## Quickstart
 ```bash
