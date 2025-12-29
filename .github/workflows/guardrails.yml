@@ -26,8 +26,8 @@ jobs:
 
       - name: Run guardrail checks
         env:
-          GUARDRAILS_BASE_REF: "origin/${{ github.event.pull_request.base.ref || 'main' }}"
-        run: python scripts/verify_guardrails.py --base "$GUARDRAILS_BASE_REF"
+          BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+        run: python scripts/verify_guardrails.py --base "$BASE_REF"
 
       - name: Run guardrail unit tests
         run: pytest tests/test_verify_guardrails.py
