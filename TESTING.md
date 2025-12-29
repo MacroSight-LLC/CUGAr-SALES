@@ -8,6 +8,10 @@ uv sync --all-extras --dev
 uv run playwright install --with-deps chromium
 ```
 
+## Pull request quality gates
+- **Matrix quality job** (`.github/workflows/ci.yml`): runs ruff lint, mypy, and full pytest coverage (`--cov-fail-under=80`) on Python 3.10–3.12 for every push/PR to `main` and `develop`.
+- **Demo & sandbox smoke**: installs Playwright browsers, exercises the LangGraph demo flow (`examples/run_langgraph_demo.py`) and the CLI ingest/query round-trip plus import guardrail checks (`tests/test_cli_end_to_end.py`, `tests/test_tools_import_security.py`). These fast checks catch regressions in the documented sandboxed tool resolution and CLI experience.
+
 ## Fast checks
 Run the guardrail verifier and linters before opening a pull request:
 
@@ -26,6 +30,13 @@ bash src/scripts/run_tests.sh
 
 # CI-style unit slice
 bash src/scripts/run_tests.sh unit_tests
+```
+
+To mirror the CI demo smoke locally:
+
+```bash
+uv run python examples/run_langgraph_demo.py --goal "demo smoke" --profile demo_power
+uv run pytest tests/test_cli_end_to_end.py tests/test_tools_import_security.py
 ```
 
 CI runs `pytest --cov=src --cov-report=term-missing --cov-fail-under=80` and the stability harness `python src/scripts/run_stability_tests.py` to guard planner/registry/guardrail regressions.
