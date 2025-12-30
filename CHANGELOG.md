@@ -18,6 +18,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - ➕ Added: Vector memory abstraction with in-memory fallback and optional Chroma/Qdrant/Weaviate/Milvus connectors
 - ➕ Added: LlamaIndex RAG loader/retriever utilities and Langfuse/OpenInference observability hooks
 - ➕ Added: Developer tooling (.editorconfig, .gitattributes, pre-commit config, expanded Makefile) and CI workflow `ci.yml`
+- ➕ Added: Watsonx Granite provider scaffold, Langflow component stubs, registry validation starter, and sandbox profile JSON.
 - ➕ Added: Templates and documentation for `.env`, roadmap, and multi-agent examples under `agents/`, `tools/`, `memory/`, and `rag/`
 - In development: GitHub Actions CI, coverage reports, Langflow project inspector
 - ➕ Added: `scrape_tweets` MCP tool using `snscrape` for Twitter/X scraping

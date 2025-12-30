@@ -16,6 +16,12 @@ Policy and change-management guardrails are maintained in [AGENTS.md](AGENTS.md)
 - **Developer experience**: Typer CLI, Makefile tasks, uv-based env management, Ruff/Black/isort + mypy, pytest+coverage, pre-commit.
 - **Deployment**: Dockerfile, GitHub Actions CI/CD, sample configs and .env.example for cloud/on-prem setups.
 
+## Recent updates (scaffolding)
+
+- Added Watsonx Granite provider stub with deterministic defaults and JSONL audit trail to simplify enterprise alignment.
+- Added Langflow component placeholders (planner, executor, guard, Granite LLM) to prep for flow export/import commands.
+- Added registry validation, sandbox profile starter, and documentation shells for security and guardrail mapping.
+
 ## Architecture
 ```
                        ┌──────────────────────────┐
