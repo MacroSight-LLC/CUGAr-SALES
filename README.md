@@ -77,6 +77,7 @@ uv run python examples/run_langgraph_demo.py --goal "triage a support ticket"
 - Review [AGENTS.md](AGENTS.md) before altering planners, tools, or registry entries; it is the single source of truth for allowlists, sandbox expectations, budgets, and redaction.
 - Guardrail and registry changes are enforced by CI: `scripts/verify_guardrails.py --base <branch>` collects diffs and fails if `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, or `todo1.md` are not updated alongside guardrail changes or if `## vNext` lacks a guardrail note.
 - Keep production checklists ([PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)) and security docs in sync with guardrail adjustments so downstream users understand the default policies and where to override them.
+- Developer checklist: ensure registry entries declare sandboxes + `/workdir` pinning for exec scopes, budget/observability env keys (`AGENT_*`, `OTEL_*`, LangFuse/LangSmith, Traceloop) are wired, `docs/mcp/tiers.md` is regenerated from `docs/mcp/registry.yaml`, and new/updated tests exercise planner ranking, import guardrails, and registry hot-swap determinism.
 
 ## Agent Types
 - **Planner**: ReAct or Plan-and-Execute; emits steps with policy-aware cost/latency hints.

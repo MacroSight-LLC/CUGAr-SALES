@@ -31,11 +31,6 @@ def get_expected_token_hash() -> bytes:
 app = FastAPI(title="Cuga Backend")
 
 
-@app.on_event("startup")
-def validate_agent_token():
-    get_expected_token()
-
-
 @app.middleware("http")
 async def budget_guard(request, call_next):
     try:

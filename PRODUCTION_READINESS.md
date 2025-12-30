@@ -47,6 +47,15 @@ This checklist ensures the CUGAR Agent system is hardened, documented, and versi
 
 ---
 
+## 🛡️ Guardrails & Registry
+
+- [x] Registry entries declare sandbox profile (`py/node slim|full`, `orchestrator`) with `/workdir` pinning for exec scopes and read-only defaults.
+- [x] Budget and observability env keys (`AGENT_*`, `OTEL_*`, `LANGFUSE_*`, `OPENINFERENCE_*`, `TRACELOOP_*`) wired with default `warn` budget policy and ceiling/escalation caps.
+- [x] `docs/mcp/registry.yaml` kept in sync with generated `docs/mcp/tiers.md`; hot-swap reload path tested and deterministic ordering verified.
+- [x] Guardrail updates accompanied by README/CHANGELOG/todo1 updates and `scripts/verify_guardrails.py --base <ref>` runs.
+
+---
+
 ## 🧪 Tests & Stability
 
 - [x] Core modules tested (`controller`, `planner`, `executor`)

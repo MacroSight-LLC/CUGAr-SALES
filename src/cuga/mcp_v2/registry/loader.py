@@ -3,18 +3,27 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from omegaconf import DictConfig, OmegaConf
+try:
+    from omegaconf import DictConfig, OmegaConf
+except Exception:  # pragma: no cover - optional dependency
+    DictConfig = None  # type: ignore
+    OmegaConf = None  # type: ignore
 
-from .config_loader import load_registry_config
+try:  # pragma: no cover - optional dependency
+    from .config_loader import load_registry_config
+except Exception:  # pragma: no cover
+    load_registry_config = None  # type: ignore
 from .errors import RegistryMergeError, RegistryValidationError
 from .models import MCPServerDefinition, MCPToolDefinition
 from .snapshot import RegistrySnapshot
 
 ENV_REGISTRY_PATH = "CUGA_MCP_REGISTRY_PATH"
 _BOOL_TRUE = {"1", "true", "yes", "on"}
+_ENV_PATTERN = re.compile(r"\$\{oc\.env:([^,}]+)(?:,\s*\"([^}]*)\")?}")
 
 
 def _coerce_bool(value: Any, *, default: bool = True) -> bool:
@@ -60,7 +69,7 @@ def _parse_tool(name: str, raw: Mapping[str, Any], env: Mapping[str, str]) -> MC
         description=raw.get("description"),
         operation_id=operation_id,
         method=method.upper() if isinstance(method, str) else method,
-        path=path,
+        path=_resolve_env_placeholders(path, env),
         schema=raw.get("schema"),
         enabled=enabled,
         enabled_env=raw.get("enabled_env"),
@@ -71,7 +80,7 @@ def _parse_server(name: str, raw: Mapping[str, Any], env: Mapping[str, str]) -> 
     if not isinstance(raw, Mapping):
         raise RegistryValidationError(f"Server '{name}' must be a mapping")
     enabled = _env_enabled(raw, env)
-    url = raw.get("url")
+    url = _resolve_env_placeholders(raw.get("url"), env)
     if not isinstance(url, str) or not url.strip():
         raise RegistryValidationError(f"Server '{name}' must declare a non-empty url")
     tools_raw = raw.get("tools", [])
@@ -101,7 +110,7 @@ def _merge_servers(documents: Iterable[tuple[Path, Mapping[str, Any]]], env: Map
     merged: list[MCPServerDefinition] = []
     seen: dict[str, Path] = {}
     for source_path, document in documents:
-        if isinstance(document, DictConfig):
+        if DictConfig is not None and isinstance(document, DictConfig):
             document = OmegaConf.to_container(document, resolve=True)  # type: ignore[assignment]
         servers_block = document.get("servers", {})
         if servers_block is None:
@@ -120,6 +129,22 @@ def _merge_servers(documents: Iterable[tuple[Path, Mapping[str, Any]]], env: Map
     return tuple(merged)
 
 
+def _resolve_env_placeholders(value: Any, env: Mapping[str, str]) -> Any:
+    if not isinstance(value, str):
+        return value
+    match = _ENV_PATTERN.fullmatch(value.strip())
+    if not match:
+        return value
+    key = match.group(1).strip()
+    default = match.group(2)
+    resolved = env.get(key)
+    if resolved is not None:
+        return resolved
+    if default is not None:
+        return default.strip().strip("\"")
+    return value
+
+
 def load_mcp_registry_snapshot(
     path: str | Path | None = None,
     *,
@@ -135,7 +160,19 @@ def load_mcp_registry_snapshot(
     if not raw_path:
         return RegistrySnapshot.empty()
     resolved_path = Path(raw_path).expanduser().resolve()
-    documents = load_registry_config(resolved_path)
+    if load_registry_config is not None and DictConfig is not None and OmegaConf is not None:
+        documents = load_registry_config(resolved_path)
+    else:
+        from cuga.registry.loader import _safe_load
+
+        base = _safe_load(resolved_path.read_text())
+        documents = [(resolved_path, base)]
+        defaults = base.get("defaults", []) if isinstance(base, Mapping) else []
+        for entry in defaults:
+            if isinstance(entry, str) and entry != "_self_":
+                fragment_path = (resolved_path.parent / f"{entry}.yaml").resolve()
+                if fragment_path.exists():
+                    documents.append((fragment_path, _safe_load(fragment_path.read_text())))
     servers = _merge_servers(documents, env)
     sources = tuple(path for path, _ in documents)
     return RegistrySnapshot(servers=servers, sources=sources)

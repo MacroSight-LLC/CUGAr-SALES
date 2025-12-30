@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Sequence
 
-import yaml
+try:
+    import yaml
+except Exception:
+    yaml = None
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    src_path = REPO_ROOT / "src"
+    if str(src_path) not in sys.path:
+        sys.path.insert(0, str(src_path))
+    from cuga.registry.loader import _safe_load as _fallback_load  # type: ignore
+else:
+    _fallback_load = None
 
 REGISTRY_PATH = Path("docs/mcp/registry.yaml")
 OUTPUT_PATH = Path("docs/mcp/tiers.md")
@@ -85,7 +96,10 @@ def _render_table(rows: List[Dict]) -> str:
 
 
 def generate() -> str:
-    registry = yaml.safe_load(REGISTRY_PATH.read_text())
+    if yaml:
+        registry = yaml.safe_load(REGISTRY_PATH.read_text())
+    else:
+        registry = _fallback_load(REGISTRY_PATH.read_text())
     rows = _rows(registry)
     preface = [
         "Tier 1: foundational defaults for orchestration, execution, filesystem, web/search, and VCS. Registry-driven, default enabled.",

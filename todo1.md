@@ -1,8 +1,8 @@
 # Repository To-Do (Comprehensive)
 
 ## Governance & Guardrails
-- Align root `AGENTS.md` guardrails with current tool allowlist/denylist, escalation ceilings, redaction rules, and budget caps before enabling Tier 1 defaults.
-- Maintain the guardrail CI gate so registry/AGENTS edits fail unless `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, and `todo1.md` reflect the change and `scripts/verify_guardrails.py` passes.
+- [x] Align root `AGENTS.md` guardrails with current tool allowlist/denylist, escalation ceilings, redaction rules, and budget caps before enabling Tier 1 defaults.
+- [x] Maintain the guardrail CI gate so registry/AGENTS edits fail unless `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, and `todo1.md` reflect the change and `scripts/verify_guardrails.py` passes.
 - Track watsonx credential validation/audit expectations and extension-aware registry parsing in docs when updating guardrails.
 - Document any adjustments to guardrails in `CHANGELOG.md` under `## vNext` alongside test updates.
 - Keep README, PRODUCTION readiness notes, and security docs synchronized with guardrail and registry expectations; capture new follow-ups in this list whenever guardrails shift.
@@ -10,9 +10,9 @@
 ## Registry & Sandbox Enablement
 - Complete Tier 1 registry composition so `docs/mcp/registry.yaml` matches compose service mounts/env with health checks.
 - Enforce sandbox profiles (py/node slim/full) per registry entry, including read-only mounts and `/workdir` pinning for E2B/Docker execution.
-- Wire observability and budget enforcement env keys (AGENT_*, OTEL, LangFuse/LangSmith) with `warn|block` budget policies and trace sampling controls.
+- [x] Wire observability and budget enforcement env keys (AGENT_*, OTEL, LangFuse/LangSmith) with `warn|block` budget policies and trace sampling controls.
 - Publish Tier 2 optional modules marked `enabled: false`, ensuring compose `tier2` profile launches optional observability/vector DB services with documented network limits.
-- Add registry-driven hot-swap flow so tool replacements occur via registry edits only; auto-regenerate doc tables; add deterministic sort tests.
+- [x] Add registry-driven hot-swap flow so tool replacements occur via registry edits only; auto-regenerate doc tables; add deterministic sort tests.
 
 ## Planner, Coordinator, and Tooling
 - Finalize LangGraph-first planner/executor wiring with streaming callbacks and structured trace propagation.
