@@ -31,6 +31,7 @@ _SCHEMA = {
 }
 
 _AUDIT_OPERATION = "registry_schema_validation"
+_AUDIT_RESERVED_EXTRA_KEYS = {"event", "operation", "outcome"}
 
 
 class _SimpleError:
@@ -117,10 +118,15 @@ def _build_audit_extra(
 ) -> Dict[str, Any]:
     extra: Dict[str, Any] = {"event": event, "operation": _AUDIT_OPERATION, "outcome": outcome}
     if audit_context:
-        for key in ("actor", "principal", "correlation_id", "request_id"):
-            value = audit_context.get(key)
+        for key, value in audit_context.items():
+            if key in _AUDIT_RESERVED_EXTRA_KEYS:
+                continue
             if value:
                 extra[key] = value
+
+    if details:
+        details = {k: v for k, v in details.items() if k not in _AUDIT_RESERVED_EXTRA_KEYS}
+
     extra.update(details)
     return extra
 
@@ -170,22 +176,21 @@ def validate_registry_payload(
     audit_context = audit_context or {}
     validation_errors: List[Any] = []
 
-    if validator:
-        try:
-            validation_errors = list(validator.iter_errors(payload))
-        except Exception as exc:  # pragma: no cover - defensive guard
-            logger.error(
+    try:
+        validation_errors = list(validator.iter_errors(payload))
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.error(
+            "registry_schema_validation_error",
+            extra=_build_audit_extra(
                 "registry_schema_validation_error",
-                extra=_build_audit_extra(
-                    "registry_schema_validation_error",
-                    outcome="failure",
-                    audit_context=audit_context,
-                    error_type=type(exc).__name__,
-                ),
-            )
-            if fail_on_validation_error:
-                raise ValueError("Invalid registry schema") from None
-            return []
+                outcome="failure",
+                audit_context=audit_context,
+                error_type=type(exc).__name__,
+            ),
+        )
+        if fail_on_validation_error:
+            raise ValueError("Invalid registry schema") from None
+        return []
 
     servers = payload.get("servers", [])
     if not isinstance(servers, list):
@@ -217,36 +222,10 @@ def validate_registry_payload(
         )
 
     filtered: List[Dict[str, Any]] = []
-    if validator:
-        for idx, raw in enumerate(servers):
-            if idx in invalid_indices:
-                continue
-            if isinstance(raw, dict):
-                filtered.append(raw)
-    else:  # pragma: no cover - fallback when jsonschema is unavailable
-        for idx, raw in enumerate(servers):
-            if not isinstance(raw, dict):
-                logger.warning(
-                    "registry_entry_invalid_type",
-                    extra=_build_audit_extra(
-                        "registry_entry_invalid_type",
-                        outcome="failure",
-                        audit_context=audit_context,
-                        index=idx,
-                    ),
-                )
-                continue
-            if not raw.get("id") or not raw.get("url"):
-                logger.warning(
-                    "registry_entry_missing_fields",
-                    extra=_build_audit_extra(
-                        "registry_entry_missing_fields",
-                        outcome="failure",
-                        audit_context=audit_context,
-                        index=idx,
-                    ),
-                )
-                continue
+    for idx, raw in enumerate(servers):
+        if idx in invalid_indices:
+            continue
+        if isinstance(raw, dict):
             filtered.append(raw)
 
     outcome = "success"
