@@ -1,11 +1,17 @@
-import pytest
+from pathlib import Path
 
-from cuga.tools.registry import ToolRegistry
+from cuga.tools.registry import RegistryLoader
 
 
-def test_registry_schema_validation(tmp_path):
-    payload = {"servers": [{"id": "demo", "url": "http://localhost:8000", "rate_limit_per_minute": 10}]}
-    path = tmp_path / "mcp.yaml"
-    path.write_text("servers:\n  - id: demo\n    url: http://localhost:8000\n    rate_limit_per_minute: 10\n")
-    registry = ToolRegistry(path)
-    assert registry.enabled()
+def test_load_yaml_registry(tmp_path: Path):
+    p = tmp_path / "mcp_servers.yaml"
+    p.write_text("servers:\n  - id: a\n    url: http://localhost:8000\n", encoding="utf-8")
+    servers = RegistryLoader(p)._load()
+    assert len(servers) == 1 and servers[0].id == "a"
+
+
+def test_load_json_registry(tmp_path: Path):
+    p = tmp_path / "mcp_servers.json"
+    p.write_text('{"servers":[{"id":"b","url":"https://example"}]}', encoding="utf-8")
+    servers = RegistryLoader(p)._load()
+    assert len(servers) == 1 and servers[0].id == "b"

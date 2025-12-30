@@ -3,6 +3,7 @@
 ## Governance & Guardrails
 - Align root `AGENTS.md` guardrails with current tool allowlist/denylist, escalation ceilings, redaction rules, and budget caps before enabling Tier 1 defaults.
 - Maintain the guardrail CI gate so registry/AGENTS edits fail unless `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, and `todo1.md` reflect the change and `scripts/verify_guardrails.py` passes.
+- Track watsonx credential validation/audit expectations and extension-aware registry parsing in docs when updating guardrails.
 - Document any adjustments to guardrails in `CHANGELOG.md` under `## vNext` alongside test updates.
 - Keep README, PRODUCTION readiness notes, and security docs synchronized with guardrail and registry expectations; capture new follow-ups in this list whenever guardrails shift.
 

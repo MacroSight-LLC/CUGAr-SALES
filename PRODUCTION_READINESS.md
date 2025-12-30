@@ -18,7 +18,7 @@ This checklist ensures the CUGAR Agent system is hardened, documented, and versi
 
 - [x] `.env.example` included and redacted
 - [x] `USE_EMBEDDED_ASSETS` feature flag documented
-- [ ] Watsonx Granite provider scaffold uses env-based credentials (`WATSONX_API_KEY`, `WATSONX_PROJECT_ID`, `WATSONX_URL`) with deterministic defaults; verify before enabling.
+- [x] Watsonx Granite provider validates env-based credentials (`WATSONX_API_KEY`, `WATSONX_PROJECT_ID`, `WATSONX_URL`) with deterministic defaults and audit logging.
 - [x] No hardcoded keys or tokens
 - [x] Secrets validated before use (`assert key`)
 - [x] `detect-secrets` baseline committed

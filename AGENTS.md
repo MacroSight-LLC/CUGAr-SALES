@@ -1,6 +1,6 @@
 # AGENTS.md (Single Source of Truth)
 
-> This directory inherits from root `AGENTS.md` (canonical). Conflicts resolve to root.
+> Canonical instructions now live in `docs/AGENTS.md`. This file mirrors the same guardrails for convenience; consult `docs/AGENTS.md` for the definitive, kept-in-sync version.
 
 ## 1. Scope & Precedence
 - Root guardrails are canonical for all subdirectories; add directory-specific `AGENTS.md` only to tighten rules, never to relax them.

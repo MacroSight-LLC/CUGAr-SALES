@@ -1,3 +1,9 @@
+[model]
+id = "ibm/granite-3-3-8b-instruct"
+decoding_method = "greedy"
+max_new_tokens = 512
+min_new_tokens = 1
+
 [agent.task_decomposition.model]
 platform = "watsonx"
 model_name = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"

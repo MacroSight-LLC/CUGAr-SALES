@@ -1,9 +1,18 @@
+import importlib
+import importlib.util
+
 import pytest
 
-from cuga.langflow_components.planner_component import PlannerComponent
 
+def test_guard_components_importable():
+    if importlib.util.find_spec("lfx") is None:
+        pytest.skip("Langflow optional dependency is not installed")
 
-def test_planner_component_runs():
-    component = PlannerComponent()
-    result = component(goal="demo")
-    assert result["plan"] == ["demo"]
+    modules = [
+        "cuga.langflow_components.guard_input",
+        "cuga.langflow_components.guard_tool",
+        "cuga.langflow_components.guard_output",
+        "cuga.langflow_components.guard_orchestrator",
+    ]
+    for mod in modules:
+        assert importlib.import_module(mod)

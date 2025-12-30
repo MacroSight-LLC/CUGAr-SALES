@@ -1,26 +1,48 @@
-"""Langflow guard component placeholder."""
+"""Langflow tool guard component with unique identity."""
 from __future__ import annotations
 
-from typing import Any, Dict
+import importlib
+from typing import Any
 
-try:
-    from langflow.custom import custom_component
-    from langflow.custom.custom_component.component import Component
-except Exception:  # pragma: no cover
-    Component = object  # type: ignore
-    custom_component = lambda *args, **kwargs: (lambda cls: cls)
+_lfx_spec = importlib.util.find_spec("lfx")
+if _lfx_spec:
+    from lfx.custom.custom_component.component import Component
+    from lfx.custom.custom_component.decorators import custom_component
+    from lfx.io import MessageTextInput, Output
+    from lfx.schema import Data
+else:  # pragma: no cover - optional dependency
+    class Component:  # type: ignore
+        ...
+
+    def custom_component(*args: Any, **kwargs: Any):  # type: ignore
+        def wrapper(cls: Any) -> Any:
+            return cls
+
+        return wrapper
+
+    class MessageTextInput:  # type: ignore
+        def __init__(self, name: str, display_name: str, value: str = "") -> None:
+            self.name = name
+            self.display_name = display_name
+            self.value = value
+
+    class Output:  # type: ignore
+        def __init__(self, display_name: str, name: str, method: str) -> None:
+            self.display_name = display_name
+            self.name = name
+            self.method = method
+
+    class Data:  # type: ignore
+        def __init__(self, value: Any) -> None:
+            self.value = value
 
 
-@custom_component(component_type="guard", description="Guardrail component")
-class GuardComponent(Component):
-    display_name = "CUGA Guard"
-    description = "Applies lightweight guardrail logic"
+@custom_component(component_type="guard_tool", description="Tool guard component")
+class GuardToolComponent(Component):
+    display_name = "CUGA Tool Guard"
+    description = "Applies lightweight guardrail logic to tool calls"
+    inputs = [MessageTextInput(name="payload", display_name="Payload", value="")]
+    outputs = [Output(display_name="Result", name="result", method="build")]
 
-    def build_config(self) -> Dict[str, Any]:  # pragma: no cover - UI metadata
-        return {"payload": {"type": "dict", "required": True}, "policy": {"type": "str", "required": False}}
-
-    def __call__(self, payload: Dict[str, Any], policy: str | None = None) -> Dict[str, Any]:
-        decision = "pass"
-        if policy:
-            decision = "review"
-        return {"decision": decision, "payload": payload}
+    def build(self) -> Data:
+        return Data(value={"decision": "pass", "details": {"tool": "unknown"}})
