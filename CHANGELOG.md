@@ -29,6 +29,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - ➕ Added: CLI for listing agents, running goals, and exporting structured results
 - ➕ Added: External tool plugin system with discovery helpers and a template plugin example
 - ➕ Added: Env-gated MCP registry loader/runner wiring with sample `registry.yaml` and planner/executor integration
+- ➕ Added: Watsonx model settings template with deterministic default parameters for Granite.
 - ➕ Added: Agent UI intent preview, invocation timeline, and state badge for clearer tool legibility
 - ➕ Added: Expanded guardrail verification script (`scripts/verify_guardrails.py`), inheritance markers, and CI enforcement
 - ➕ Added: Guardrail verifier coverage for allowlist/denylist, budget, escalation, and redaction keywords plus planner/worker/coordinator contracts
@@ -44,6 +45,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 🔁 Changed: Controller and executor now emit structured audit traces and sanitize handler failures
 - 🔁 Changed: Tool registry now deep-copies resolved entries and profile snapshots to prevent caller mutations from leaking between tools
 - 🔁 Changed: Reconciled agent lifecycle, tooling, and security documentation with current code enforcement boundaries
+- 🔁 Changed: Guardrail hierarchy documented explicitly in root/docs `AGENTS.md` with inheritance reminders.
 - 🔁 Changed: Guardrail routing updated so root `AGENTS.md` remains canonical with per-directory inherit markers
 - 🔁 Changed: Guardrail verification now centralizes allowlists/keywords and supports env overrides to reduce drift
 - 🔁 Changed: Guardrail verification now tracks `config/` with inheritance markers to cover Hydra registry defaults
@@ -54,6 +56,8 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 🔁 Changed: MCP registry loader now uses Hydra's `compose` API for Hydra/OmegaConf configuration composition with shared config defaults and fragment support
 - 🔁 Changed: Watsonx Granite provider now validates credentials up front, enforces deterministic defaults, and writes structured audit metadata (timestamp, actor, parameters, outcome).
 - 🔁 Changed: Tool registry loader parses files by extension (YAML/JSON) with optional schema validation guarded by dependency detection.
+- 🔁 Changed: JSON Schema validation now guards registry parsing with structured logging and skips malformed entries instead of failing globally.
+- 🔁 Changed: Watsonx function-call validation now fails fast by default with optional legacy graceful mode.
 
 ### Fixed
 - 🐞 Fixed: Hardened `crypto_wallet` parameter parsing and clarified non-production security posture

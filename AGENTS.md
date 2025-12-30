@@ -2,6 +2,10 @@
 
 > Canonical instructions now live in `docs/AGENTS.md`. This file mirrors the same guardrails for convenience; consult `docs/AGENTS.md` for the definitive, kept-in-sync version.
 
+## Guardrail Hierarchy
+- `docs/AGENTS.md` remains the canonical source; this root file mirrors it.
+- Any nested `AGENTS.md` may only tighten these guardrails and must explicitly inherit from this hierarchy.
+
 ## 1. Scope & Precedence
 - Root guardrails are canonical for all subdirectories; add directory-specific `AGENTS.md` only to tighten rules, never to relax them.
 - Allowlisted tools live under `cuga.modular.tools.*`; any denylisted or unknown module import MUST be rejected before execution.

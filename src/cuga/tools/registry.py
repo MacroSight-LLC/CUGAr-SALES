@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -13,12 +14,13 @@ else:  # pragma: no cover
     Draft7Validator = None  # type: ignore
 
 from .models import RegistryServer
-from .schema import _SCHEMA
+from .schema import _SCHEMA, validate_registry_payload
 
 
 class RegistryLoader:
     def __init__(self, path: Path) -> None:
         self.path = path
+        self.logger = logging.getLogger(__name__)
 
     def _load(self) -> List[RegistryServer]:
         payload: Dict[str, Any] = {}
@@ -40,11 +42,11 @@ class RegistryLoader:
                 except json.JSONDecodeError:  # pragma: no cover
                     payload = {}
 
-        if Draft7Validator and payload:
-            Draft7Validator(_SCHEMA).validate(payload)
+        validator = Draft7Validator(_SCHEMA) if Draft7Validator else None
+        servers_payload = validate_registry_payload(payload, validator, logger=self.logger)
 
         servers: List[RegistryServer] = []
-        for raw in payload.get("servers", []):
+        for raw in servers_payload:
             servers.append(
                 RegistryServer(
                     id=raw["id"],
