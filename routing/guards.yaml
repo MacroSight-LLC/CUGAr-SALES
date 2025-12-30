@@ -1,0 +1,7 @@
+# Guard routing configuration placeholder
+input:
+  default: policies/default_input.yaml
+tool:
+  default: policies/default_tool.yaml
+output:
+  default: policies/default_output.yaml
