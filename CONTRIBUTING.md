@@ -32,5 +32,10 @@ Thank you for helping make CUGAR Agent a reliable, modular agent stack. Please f
 - Keep README, USAGE, TESTING, SECURITY, and AGENTS in sync with behavior.
 - Add architecture notes for new modules and update diagrams when necessary.
 
+## Logging and auditing
+- Prefer structured logs with `event`, `operation`, and `outcome` fields for registry validation and similar guardrail code.
+- Never echo payloads, tokens, URLs, or secrets in logs or exceptions; limit diagnostics to schema paths, validators, and missing fields.
+- When adding validation features, support an opt-in strict mode that can raise sanitized errors while keeping defaults backward compatible.
+
 ## Reporting Issues
 Use `.github/ISSUE_TEMPLATE` forms. Include repro steps, logs, and environment info. Security concerns should go to the process in `SECURITY.md` rather than public issues.

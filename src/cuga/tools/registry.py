@@ -7,20 +7,23 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
-_jsonschema_spec = importlib.util.find_spec("jsonschema")
-if _jsonschema_spec:
-    from jsonschema import Draft7Validator  # type: ignore
-else:  # pragma: no cover
-    Draft7Validator = None  # type: ignore
-
 from .models import RegistryServer
-from .schema import _SCHEMA, validate_registry_payload
+from .schema import get_registry_validator, validate_registry_payload
 
 
 class RegistryLoader:
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        logger: logging.Logger | None = None,
+        audit_context: dict[str, str] | None = None,
+        fail_on_validation_error: bool = False,
+    ) -> None:
         self.path = path
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger(__name__)
+        self.audit_context = audit_context or {}
+        self.fail_on_validation_error = fail_on_validation_error
 
     def _load(self) -> List[RegistryServer]:
         payload: Dict[str, Any] = {}
@@ -42,8 +45,14 @@ class RegistryLoader:
                 except json.JSONDecodeError:  # pragma: no cover
                     payload = {}
 
-        validator = Draft7Validator(_SCHEMA) if Draft7Validator else None
-        servers_payload = validate_registry_payload(payload, validator, logger=self.logger)
+        validator = get_registry_validator()
+        servers_payload = validate_registry_payload(
+            payload,
+            validator,
+            logger=self.logger,
+            audit_context=self.audit_context,
+            fail_on_validation_error=self.fail_on_validation_error,
+        )
 
         servers: List[RegistryServer] = []
         for raw in servers_payload:
