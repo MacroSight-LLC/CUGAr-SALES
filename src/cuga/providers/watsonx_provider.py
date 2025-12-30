@@ -113,7 +113,23 @@ class WatsonxProvider:
         payload["token_usage"] = response.get("token_usage")
         return self._write_audit_and_return(payload, response)
 
-    def function_call(self, functions: Iterable[Type[BaseModel]], prompt: str) -> Dict[str, Any]:
+    def function_call(
+        self,
+        functions: Iterable[Type[BaseModel]],
+        prompt: str,
+        *,
+        fail_on_validation_error: bool = True,
+    ) -> Dict[str, Any]:
+        """Validate Watsonx function-call schemas before generation.
+
+        Args:
+            functions: Iterable of Pydantic models describing callable functions.
+            prompt: Prompt to send to the model.
+            fail_on_validation_error: When True (default), raise on validation issues
+                before invoking the model. Set to False to return validation errors
+                while still generating a response (legacy behavior).
+        """
+
         errors: list[str] = []
         for fn_model in functions:
             try:
@@ -128,6 +144,10 @@ class WatsonxProvider:
                 errors.append(f"Invalid Pydantic model {fn_model.__name__}: {exc}")
             except Exception as exc:  # pragma: no cover
                 errors.append(f"Invalid Pydantic model {fn_model.__name__}: {exc}")
+
+        if errors and fail_on_validation_error:
+            raise ValueError("; ".join(errors))
+
         response = self.generate(prompt)
         return {"response": response, "validation": errors}
 

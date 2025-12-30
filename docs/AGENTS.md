@@ -2,6 +2,8 @@
 
 > This file is the canonical source for guardrail instructions. The root `AGENTS.md` mirrors this content and points back here.
 
+This mirror stays synchronized with the root instructions; update both when changing guardrails.
+
 This file inherits the root `AGENTS.md` directives and mirrors guardrail expectations for all documentation changes. When updating guardrails, keep this file and the root version in sync.
 
 ## 1. Scope & Precedence
