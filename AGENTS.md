@@ -6,6 +6,44 @@
 - `docs/AGENTS.md` remains the canonical source; this root file mirrors it.
 - Any nested `AGENTS.md` may only tighten these guardrails and must explicitly inherit from this hierarchy.
 
+## Design Tenets
+- Security-first, offline-first defaults with strict allowlists/denylists and deterministic behavior across planner, worker, coordinator, and sandboxes.
+- Registry-driven control planes only; tool swaps and sandbox changes must land as `registry.yaml` diffs with deterministic ordering and audit traces.
+
+## Agent Roles & Interfaces
+- PlannerAgent accepts `(goal: str, metadata: dict)` and returns ordered steps with streaming-friendly traces.
+- WorkerAgent executes ordered steps against allowlisted tools and enforces tool schemas; CoordinatorAgent preserves trace ordering with thread-safe round-robin worker selection.
+
+## Planning Protocol
+- LangGraph-first planning and streaming hooks; planners must not select all tools blindly and must rank by similarity/metadata.
+- Clamp `PLANNER_MAX_STEPS` to 1..50 with warnings on invalid input; `MODEL_TEMPERATURE` clamps to 0..2.
+
+## Tool Contract
+- Tools live under `cuga.modular.tools.*` only; signature `(inputs: Dict[str, Any], context: Dict[str, Any]) -> Any` with explicit schemas.
+- No `eval`/`exec`, no network unless profile allows, and parameters must be declared with IO expectations.
+
+## Memory & RAG
+- Deterministic/local embeddings by default; metadata must include `path` and `profile`; isolation per profile with no cross-profile leakage.
+
+## Coordinator Policy
+- Thread-safe round-robin worker selection with preserved plan ordering and trace propagation across planner/worker/coordinator.
+
+## Configuration Policy
+- Env allowlist: `AGENT_*`, `OTEL_*`, `LANGFUSE_*`, `OPENINFERENCE_*`, `TRACELOOP_*`; budget ceilings default 100 with escalation max 2 and `warn|block` budget policy.
+- Sandbox profiles (`py/node slim|full`, `orchestrator`) must be declared per registry entry with `/workdir` pinning for exec scopes and read-only defaults.
+
+## Observability & Tracing
+- Structured, PII-safe logs with redaction for `secret`, `token`, `password` keys; `trace_id` propagates through CLI, planner, worker, coordinator, and tools.
+- Emit spans for plan creation, tool selection, execution start/stop, backend calls, registry/budget decisions; default OTEL/LangFuse/LangSmith hooks from env.
+
+## Testing Invariants
+- Tests cover import guardrails (reject non-`cuga.modular.tools.*`), planner ranking, round-robin scheduling, env parsing clamps, registry determinism, and sandbox profile enforcement.
+- Run `python scripts/verify_guardrails.py --base <ref>` plus stability harness before merging guardrail or registry changes.
+
+## Change Management
+- Guardrail/registry updates require synced docs (`README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, `todo1.md`) and migration notes; update `AGENTS.md` first.
+- Developer checklist: document registry edits, budget/observability env wiring, sandbox mounts, and add/refresh tests plus `docs/mcp/tiers.md` table regeneration.
+
 ## 1. Scope & Precedence
 - Root guardrails are canonical for all subdirectories; add directory-specific `AGENTS.md` only to tighten rules, never to relax them.
 - Allowlisted tools live under `cuga.modular.tools.*`; any denylisted or unknown module import MUST be rejected before execution.

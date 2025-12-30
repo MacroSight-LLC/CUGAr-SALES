@@ -7,8 +7,17 @@ defaults:
   protocol: mcp
   sandbox: py-slim
   scopes: []
-  env: {}
+  env:
+    AGENT_BUDGET_CEILING: ${AGENT_BUDGET_CEILING:-100}
+    AGENT_ESCALATION_MAX: ${AGENT_ESCALATION_MAX:-2}
+    AGENT_BUDGET_POLICY: ${AGENT_BUDGET_POLICY:-warn}
+    OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-cuga}
+    LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+    LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+    TRACELOOP_API_KEY: ${TRACELOOP_API_KEY:-}
   mounts: []
+  budget_policy: warn
 entries:
   - id: langflow
     protocol: http

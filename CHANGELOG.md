@@ -9,6 +9,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - Added guardrail enforcement utilities, sandbox allowlist, and coverage gating to 80%.
 - Added CI enforcement so guardrail and registry diffs fail when documentation or changelog updates are missing.
 - Introduced LangGraph-style planner/coordinator stack with trace propagation, vector memory retention, and FastAPI deployment surface.
+- Registry defaults now wire budget/observability env keys with validated sandbox profiles, `/workdir` pinning for exec scopes, deterministic hot-reload ordering, and refreshed guardrail documentation/developer checklist.
 
 ### Added
 - ➕ Added: Deterministic hashing embedder and pluggable vector backends with local search fallback.

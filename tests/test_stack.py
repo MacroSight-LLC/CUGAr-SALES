@@ -33,9 +33,11 @@ entries:
   - id: b
     ref: docker://b
     scopes: [exec]
+    mounts: [/workdir:ro]
   - id: a
     ref: docker://a
     scopes: [exec]
+    mounts: [/workdir:ro]
 """
     reg.hot_reload(content)
     ids = [e.id for e in reg.entries]
