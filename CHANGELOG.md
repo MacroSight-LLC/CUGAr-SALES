@@ -52,6 +52,8 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 🔁 Changed: Pytest `norecursedirs` now retains default exclusions (e.g., `.*`, `venv`, `dist`, `*.egg`) to avoid unintended test discovery
 - 🔁 Changed: LLM adapter can run atop LiteLLM by default with hardened retries, fallback error handling, and thread-safe budget warnings
 - 🔁 Changed: MCP registry loader now uses Hydra's `compose` API for Hydra/OmegaConf configuration composition with shared config defaults and fragment support
+- 🔁 Changed: Watsonx Granite provider now validates credentials up front, enforces deterministic defaults, and writes structured audit metadata (timestamp, actor, parameters, outcome).
+- 🔁 Changed: Tool registry loader parses files by extension (YAML/JSON) with optional schema validation guarded by dependency detection.
 
 ### Fixed
 - 🐞 Fixed: Hardened `crypto_wallet` parameter parsing and clarified non-production security posture
@@ -67,6 +69,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 🐞 Fixed: Guardrail checker git diff detection now validates git refs and uses fixed git diff argv to avoid unchecked subprocess input
 - 🐞 Fixed: Tier table generation now falls back to env keys for non-placeholder values to avoid leaking secrets in docs
 - 🐞 Fixed: MCP registry loader enforces enabled-aware duplicate detection, method/path type validation (including `operation_id`), and environment variables that override disabled entries when set
+- 🐞 Fixed: Guard modules deduplicated under a shared orchestrator to keep routing logic consistent across inputs, tools, and outputs.
 
 ### Documentation
 - 📚 Rewrote README/USAGE/AGENTS/CONTRIBUTING/SECURITY with 2025 agent-stack guidance and integration steps
@@ -78,6 +81,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 - 📚 Documented: Architecture topology (controller/planner/tool bus), orchestration modes, and observability enhancements
 - 📚 Documented: STRIDE-lite threat model and red-team checklist covering sandbox escape, prompt injection, and leakage tests
 - 📚 Documented: Usage and testing quick-start guides plus repository Code of Conduct and security policy
+- 📚 Documented: Langflow guard components now use `lfx.*` imports with unique identifiers; registry and watsonx docs refreshed for extension-aware parsing and audit trails.
 
 ### Testing
 - 🧪 Added: Unit tests for vector search scoring, planning relevance, round-robin dispatch, env parsing, and CLI flow.

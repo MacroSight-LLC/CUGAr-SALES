@@ -1,3 +1,7 @@
-# Placeholder
+# Tool Registry Loader
 
-This document will be expanded to align with the new architecture. It describes the intent of the refactor, security controls, and integration points.
+`RegistryLoader` now parses registry files by extension to avoid masking YAML/JSON errors. YAML (`.yaml`/`.yml`) and JSON files are read with optional dependencies (`pyyaml`, `jsonschema`) detected via importlib and skipped when absent.
+
+- When JSON Schema support is present, payloads are validated against the registry schema before constructing `RegistryServer` instances.
+- Empty or malformed payloads default to an empty registry rather than raising during optional parsing, keeping offline tests deterministic.
+- Ensure the file extension matches the content type; schema validation only runs when a payload is present.

@@ -102,6 +102,7 @@ See `AGENTS.md` for role details and `USAGE.md` for end-to-end flows.
 - Langfuse client is wired via `observability/langfuse.py` with sampling + PII redaction hooks.
 - OpenInference/Traceloop emitters are optional and can be toggled per profile.
 - Structured audit logs live under `logs/` when enabled; avoid committing artifacts.
+- Watsonx Granite calls validate credentials up front and append JSONL audit rows with timestamp, actor, parameters, and outcome for offline review.
 
 ## Multi-Agent & Coordination
 - `agents/` outlines planner/worker/tool-user patterns and how to register them with CrewAI/AutoGen.
