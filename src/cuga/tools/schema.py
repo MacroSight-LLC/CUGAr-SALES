@@ -32,6 +32,7 @@ _SCHEMA = {
 
 _AUDIT_OPERATION = "registry_schema_validation"
 _AUDIT_RESERVED_EXTRA_KEYS = {"event", "operation", "outcome"}
+_AUDIT_CONTEXT_ALLOWED_KEYS = {"actor", "correlation_id", "principal"}
 
 
 class _SimpleError:
@@ -114,20 +115,32 @@ def _build_audit_extra(
     *,
     outcome: str,
     audit_context: Mapping[str, Any] | None = None,
-    **details: Any,
+    details: Mapping[str, Any] | None = None,
+    **details_kwargs: Any,
 ) -> Dict[str, Any]:
     extra: Dict[str, Any] = {"event": event, "operation": _AUDIT_OPERATION, "outcome": outcome}
     if audit_context:
-        for key, value in audit_context.items():
-            if key in _AUDIT_RESERVED_EXTRA_KEYS:
-                continue
+        for key in _AUDIT_CONTEXT_ALLOWED_KEYS:
+            value = audit_context.get(key)
             if value:
                 extra[key] = value
 
+    combined_details: Dict[str, Any] = {}
     if details:
-        details = {k: v for k, v in details.items() if k not in _AUDIT_RESERVED_EXTRA_KEYS}
+        combined_details.update(details)
+    if details_kwargs:
+        combined_details.update(details_kwargs)
 
-    extra.update(details)
+    filtered_details: Dict[str, Any] = {}
+    if combined_details:
+        filtered_details = {
+            k: v
+            for k, v in combined_details.items()
+            if k not in _AUDIT_RESERVED_EXTRA_KEYS
+        }
+
+    if filtered_details:
+        extra.update(filtered_details)
     return extra
 
 

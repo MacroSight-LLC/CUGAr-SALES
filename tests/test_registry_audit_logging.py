@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from cuga.tools.registry import RegistryLoader
+from cuga.tools.schema import _build_audit_extra
 
 
 def test_audit_logging_includes_context_and_outcome(tmp_path: Path, caplog: pytest.LogCaptureFixture):
@@ -17,6 +18,9 @@ def test_audit_logging_includes_context_and_outcome(tmp_path: Path, caplog: pyte
         "actor": "tester",
         "correlation_id": "corr-1",
         "principal": "service-account",
+        "event": "conflicting-event",
+        "operation": "conflicting-operation",
+        "outcome": "failure",
     }
 
     logger = logging.getLogger("registry_audit")
@@ -35,6 +39,7 @@ def test_audit_logging_includes_context_and_outcome(tmp_path: Path, caplog: pyte
         assert record.outcome == "failure"
         assert record.actor == audit_context["actor"]
         assert record.operation == "registry_schema_validation"
+        assert record.event == "registry_schema_violation"
         assert record.correlation_id == audit_context["correlation_id"]
         assert isinstance(record.path, list)
         assert isinstance(record.schema_path, list)
@@ -52,6 +57,7 @@ def test_audit_logging_includes_context_and_outcome(tmp_path: Path, caplog: pyte
     assert summary.actor == audit_context["actor"]
     assert summary.correlation_id == audit_context["correlation_id"]
     assert summary.operation == "registry_schema_validation"
+    assert summary.event == "registry_schema_validation"
 
 
 def test_fail_on_validation_error_raises_sanitized(tmp_path: Path, caplog: pytest.LogCaptureFixture):
@@ -65,6 +71,45 @@ def test_fail_on_validation_error_raises_sanitized(tmp_path: Path, caplog: pytes
     assert str(excinfo.value) == "Invalid registry schema"
     assert all("http://secret" not in record.getMessage() for record in caplog.records)
     assert all("http://secret" not in str(getattr(record, "constraint", "")) for record in caplog.records)
+
+    error_record = next(
+        record for record in caplog.records if getattr(record, "event", "") == "registry_schema_invalid"
+    )
+    assert getattr(error_record, "operation", None) == "registry_schema_validation"
+    assert getattr(error_record, "outcome", None) == "failure"
+    assert getattr(error_record, "reason", None) == "servers_not_list"
+    assert all("http://secret" not in str(value) for value in error_record.__dict__.values())
+
+
+def test_reserved_audit_keys_not_overridden_by_details(caplog: pytest.LogCaptureFixture):
+    audit_logger = logging.getLogger("registry_audit.details")
+    conflicting_details = {
+        "event": "details-event",
+        "operation": "details-operation",
+        "outcome": "failure",
+        "extra_detail": "value",
+    }
+
+    with caplog.at_level(logging.INFO, logger=audit_logger.name):
+        audit_logger.info(
+            "custom_audit",
+            extra=_build_audit_extra(
+                "custom_event",
+                outcome="success",
+                audit_context={"actor": "tester"},
+                details=conflicting_details,
+            ),
+        )
+
+    record = next(r for r in caplog.records if getattr(r, "event", "") == "custom_event")
+    assert record.operation == "registry_schema_validation"
+    assert record.outcome == "success"
+    assert record.actor == "tester"
+    assert record.extra_detail == "value"
+    assert record.event == "custom_event"
+    assert record.__dict__.get("event") == "custom_event"
+    assert record.__dict__.get("operation") == "registry_schema_validation"
+    assert record.__dict__.get("outcome") == "success"
 
 
 def test_custom_logger_injection(tmp_path: Path, caplog: pytest.LogCaptureFixture):
