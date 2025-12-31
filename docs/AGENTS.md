@@ -13,6 +13,10 @@ This file inherits the root `AGENTS.md` directives and mirrors guardrail expecta
 ## Agent Roles & Interfaces
 - PlannerAgent accepts `(goal: str, metadata: dict)` and returns ordered steps with streaming-friendly traces.
 - WorkerAgent executes ordered steps against allowlisted tools and enforces tool schemas; CoordinatorAgent preserves trace ordering with thread-safe round-robin worker selection.
+- **OrchestratorProtocol** (Canonical): All orchestration logic MUST implement `cuga.orchestrator.OrchestratorProtocol` defining lifecycle stages (initialize/plan/route/execute/aggregate/complete), explicit routing decisions, structured error propagation with failure modes, and immutable execution context with trace_id continuity. See `docs/orchestrator/ORCHESTRATOR_CONTRACT.md`.
+- **AgentLifecycleProtocol** (Canonical): All agents MUST implement `cuga.agents.lifecycle.AgentLifecycleProtocol` defining startup/shutdown contracts (idempotent, timeout-bounded, error-safe), state ownership boundaries (AGENT/MEMORY/ORCHESTRATOR), and resource management guarantees. See `docs/agents/AGENT_LIFECYCLE.md` and `docs/agents/STATE_OWNERSHIP.md`.
+- **AgentProtocol (I/O Contract)** (Canonical): All agents MUST implement `process(AgentRequest) -> AgentResponse` for standardized inputs (goal, task, metadata, inputs, context, constraints) and outputs (status, result/error, trace, metadata). Eliminates special-casing in routing/orchestration. See `docs/agents/AGENT_IO_CONTRACT.md`.
+- **Failure Modes** (Canonical): All errors MUST be categorized using `FailureMode` taxonomy (AGENT/SYSTEM/RESOURCE/POLICY/USER), distinguishing retryable vs terminal failures and partial success states. Orchestrators MUST use `RetryPolicy` (exponential backoff/linear/none) for safe execution management. See `docs/orchestrator/FAILURE_MODES.md`.
 
 ## Planning Protocol
 - LangGraph-first planning and streaming hooks; planners must not select all tools blindly and must rank by similarity/metadata.
@@ -25,8 +29,23 @@ This file inherits the root `AGENTS.md` directives and mirrors guardrail expecta
 ## Memory & RAG
 - Deterministic/local embeddings by default; metadata must include `path` and `profile`; isolation per profile with no cross-profile leakage.
 
-## Coordinator Policy
+## Agent Lifecycle & State Ownership
+- **Lifecycle States**: Agents transition UNINITIALIZED → INITIALIZING → READY → BUSY → SHUTTING_DOWN → TERMINATED with atomic, logged transitions.
+- **startup() Contract**: Must be idempotent, timeout-bounded, and atomic (rollback on error if `cleanup_on_error=True`); allocates resources, loads MEMORY state, initializes ephemeral AGENT state.
+- **shutdown() Contract**: MUST NOT raise exceptions (log errors internally), completes within timeout, discards AGENT state (ephemeral), persists MEMORY state (dirty flush), notifies ORCHESTRATOR.
+- **State Ownership Boundaries**:
+  - **AGENT**: Request-scoped ephemeral state (current_request, temp_data, _internal_*) — discarded on shutdown, read/write by agent only.
+  - **MEMORY**: Cross-request persistent state (user_history, embeddings, learned_facts) — survives restarts, agent read-only (write via `memory.update()`), memory system read/write.
+  - **ORCHESTRATOR**: Trace-scoped coordination state (trace_id, routing_context, parent_context) — managed by orchestrator, agent read-only.
+- **Violation Detection**: Agents MUST implement `owns_state(key) -> StateOwnership` and raise `StateViolationError` on mutation rule violations.
+- **Testing Requirements**: All agents MUST pass lifecycle compliance tests (startup idempotency, shutdown error-safety, state ownership boundaries, resource cleanup verification).
+
+## Orchestrator & Coordinator Policy
+- **Canonical Contract**: All orchestrators MUST implement `OrchestratorProtocol` with explicit lifecycle stages, deterministic routing decisions, structured error handling (fail-fast/retry/fallback/continue) with failure mode categorization, and immutable `ExecutionContext` with trace_id propagation.
+- **Routing Authority (Canonical)**: All routing decisions MUST go through `RoutingAuthority` interface. Orchestrators delegate agent/worker/tool selection to pluggable `RoutingPolicy` implementations (round-robin, capability-based, load-balanced, etc.). No routing bypass allowed—agents/FastAPI/LangGraph nodes MUST NOT contain internal routing logic. See `docs/orchestrator/ROUTING_AUTHORITY.md`.
+- **Failure Modes (Canonical)**: All failures MUST be categorized using `FailureMode` (agent/system/resource/policy/user errors) with clear retryable/terminal/partial-success semantics. Orchestrators delegate retry decisions to `RetryPolicy` implementations (ExponentialBackoff/Linear/NoRetry). Partial results MUST be preserved and recoverable. See `docs/orchestrator/FAILURE_MODES.md`.
 - Thread-safe round-robin worker selection with preserved plan ordering and trace propagation across planner/worker/coordinator.
+- Orchestrators delegate to ToolRegistry (tool resolution), PolicyEnforcer (validation), VectorMemory (memory), BaseEmitter (observability), **RoutingAuthority** (routing decisions), and **RetryPolicy** (retry logic) — MUST NOT directly call tool handlers, enforce policies, make routing decisions, or implement custom retry logic.
 
 ## Configuration Policy
 - Env allowlist: `AGENT_*`, `OTEL_*`, `LANGFUSE_*`, `OPENINFERENCE_*`, `TRACELOOP_*`; budget ceilings default 100 with escalation max 2 and `warn|block` budget policy.

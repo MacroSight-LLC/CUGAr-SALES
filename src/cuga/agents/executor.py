@@ -7,15 +7,11 @@ from dataclasses import dataclass
 import logging
 from typing import Any, Dict, Iterable, List
 
+from cuga.orchestrator.protocol import ExecutionContext
+
 from .planner import PlanStep
 from .policy import PolicyEnforcer
 from .registry import ToolRegistry
-
-
-@dataclass
-class ExecutionContext:
-    profile: str
-    metadata: Dict[str, Any] | None = None
 
 
 @dataclass

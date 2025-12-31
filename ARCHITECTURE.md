@@ -1,5 +1,9 @@
 # Architecture Overview
 
+> **For a narrative walkthrough of the complete execution flow**, see [`docs/SYSTEM_EXECUTION_NARRATIVE.md`](docs/SYSTEM_EXECUTION_NARRATIVE.md) - traces request → response with CLI/FastAPI/MCP examples, routing decisions, agent lifecycle, memory operations, and tool execution.
+>
+> **For FastAPI's specific role**, see [`docs/architecture/FASTAPI_ROLE.md`](docs/architecture/FASTAPI_ROLE.md) - clarifies FastAPI as transport layer only (not orchestrator) to prevent mixing transport and orchestration concerns.
+
 ## Modular Stack
 - Planner → Coordinator → Workers with profile-scoped VectorMemory.
 - Embeddings: deterministic hashing embedder; vector backends (FAISS/Chroma/Qdrant) behind `VectorBackend` protocol.

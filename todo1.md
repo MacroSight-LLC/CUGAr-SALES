@@ -48,6 +48,12 @@
 - Raise functional test coverage to at least 80% and extend regression/eval harness for self-play and MCP registry conformance.
 - Maintain CI guardrail script (`scripts/verify_guardrails.py`), lint (`ruff`) checks, and stability tests in `run_stability_tests.py`.
 
+## Documentation & Contributor Onboarding
+- [x] Create single "System Execution Narrative" document tracing request → routing → agent → memory → response flow for contributor onboarding (completed: `docs/SYSTEM_EXECUTION_NARRATIVE.md` with CLI/FastAPI/MCP examples, complete flow diagrams, debugging tips, 20+ doc references).
+- [x] Clarify FastAPI's role in architecture (transport vs orchestrator vs adapter) to prevent mixing transport and orchestration concerns (completed: `docs/architecture/FASTAPI_ROLE.md` defining FastAPI as transport layer only with clear boundaries, delegation patterns, anti-patterns, security roles, testing implications).
+- Update inline code comments and docstrings to align with canonical contracts (OrchestratorProtocol, AgentLifecycle, ExecutionContext).
+- Expand example gallery with real-world scenarios (multi-turn conversations, RAG queries, tool composition, error recovery).
+
 ## Release Engineering
 - Prepare tagging and release automation aligned to `VERSION.txt` and `CHANGELOG.md` updates.
 - Keep migration notes current for any breaking changes across MCP runners, registry behaviors, or sandbox policies.

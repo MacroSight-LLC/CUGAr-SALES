@@ -121,6 +121,15 @@ See `AGENTS.md` for role details and `USAGE.md` for end-to-end flows.
 - **How do I add a new tool?** Implement `ToolSpec` in `tools/registry.py` or wrap an MCP server; see `USAGE.md`.
 - **Is this production-ready?** Core stack follows sandboxed, profile-scoped design with observability. Harden configs before internet-facing use.
 
+## Documentation
+
+For a complete understanding of system execution flow:
+- 📘 **[System Execution Narrative](docs/SYSTEM_EXECUTION_NARRATIVE.md)** - Complete request → response flow for contributor onboarding (CLI/FastAPI/MCP modes, routing, agents, memory, tools)
+- 🏗️ [Architecture](ARCHITECTURE.md) - High-level design overview
+- 🚀 [Quick Start](QUICK_START.md) - Get up and running quickly
+- 🤝 [Contributing](CONTRIBUTING.md) - How to contribute to the project
+- 🔒 [Production Readiness](PRODUCTION_READINESS.md) - Deployment considerations
+
 ## Roadmap Highlights
 - Streaming-first ReAct policies with beta support for Strands/semantic state machines.
 - Built-in eval harness for self-play and regression suites.
