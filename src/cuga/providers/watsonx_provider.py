@@ -39,13 +39,32 @@ if _watsonx_spec:
 else:  # pragma: no cover - defensive import guard
     Model = None  # type: ignore
 
-DEFAULT_MODEL = os.getenv("MODEL_NAME", "ibm/granite-3-3-8b-instruct")
+# Granite 4.0 default model (stable, deterministic)
+# Available models: granite-4-h-small, granite-4-h-micro, granite-4-h-tiny
+# See: https://www.ibm.com/docs/en/watsonx-as-a-service for model catalog
+DEFAULT_MODEL = os.getenv("MODEL_NAME", "granite-4-h-small")
 DEFAULT_CONFIG_PATH = Path(os.getenv("AGENT_SETTING_CONFIG", "settings.watsonx.toml"))
 
 
 @dataclass
 class WatsonxProvider:
-    """Minimal Watsonx provider focused on deterministic responses."""
+    """Granite 4.0 provider with deterministic defaults and structured auditing.
+    
+    Granite 4.0 Models:
+        - granite-4-h-small: Balanced performance (default)
+        - granite-4-h-micro: Lightweight, fast inference
+        - granite-4-h-tiny: Minimal resource usage
+    
+    Required Environment Variables:
+        - WATSONX_API_KEY: IBM Cloud API key
+        - WATSONX_PROJECT_ID: Watsonx project ID
+        - WATSONX_URL: Watsonx API endpoint (optional, defaults to cloud)
+    
+    Deterministic Configuration:
+        - temperature=0.0 (stable, reproducible outputs)
+        - decoding_method="greedy" (deterministic token selection)
+        - seed parameter available for full reproducibility
+    """
 
     model_id: str = DEFAULT_MODEL
     decoding_method: str = "greedy"
@@ -63,6 +82,26 @@ class WatsonxProvider:
         self.max_new_tokens = min(max(self.max_new_tokens, 16), 2048)
         self.audit_path = Path(self.audit_path)
         self.audit_path.parent.mkdir(parents=True, exist_ok=True)
+        self._validate_environment()
+
+    def _validate_environment(self) -> None:
+        """Validate required environment variables for Watsonx API access.
+        
+        Raises:
+            RuntimeError: If required credentials are missing with helpful error message.
+        """
+        missing = []
+        if not self.api_key:
+            missing.append("WATSONX_API_KEY")
+        if not self.project_id:
+            missing.append("WATSONX_PROJECT_ID")
+        
+        if missing:
+            raise RuntimeError(
+                f"Missing required Watsonx credentials: {', '.join(missing)}. "
+                f"Set these environment variables or pass them to WatsonxProvider constructor. "
+                f"See docs/configuration/ENVIRONMENT_MODES.md for setup instructions."
+            )
 
     @property
     def parameters(self) -> Dict[str, Any]:
@@ -78,10 +117,7 @@ class WatsonxProvider:
             return self.client
         if Model is None:
             raise RuntimeError("ibm-watsonx-ai is not installed")
-        if not self.api_key or not self.project_id or not self.url:
-            raise RuntimeError(
-                "Missing Watsonx credentials: set WATSONX_API_KEY, WATSONX_PROJECT_ID, and WATSONX_URL"
-            )
+        # Credentials validated in __post_init__
         return Model(
             model_id=self.model_id,
             params=self.parameters,
@@ -91,11 +127,7 @@ class WatsonxProvider:
         )
 
     def generate(self, prompt: str, *, seed: int | None = None) -> Dict[str, Any]:
-        if not self.api_key or not self.project_id or not self.url:
-            raise RuntimeError(
-                "Missing Watsonx credentials: set WATSONX_API_KEY, WATSONX_PROJECT_ID, and WATSONX_URL"
-            )
-
+        # Credentials validated in __post_init__
         payload = {
             "prompt": prompt,
             "model_id": self.model_id,

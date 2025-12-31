@@ -887,9 +887,9 @@ async def save_model_config(request: Request):
     """Endpoint to save model configuration (note: this updates environment variables for current session only)."""
     try:
         data = await request.json()
-        os.environ["MODEL_PROVIDER"] = data.get("provider", "anthropic")
-        os.environ["MODEL_NAME"] = data.get("model", "claude-3-5-sonnet-20241022")
-        os.environ["MODEL_TEMPERATURE"] = str(data.get("temperature", 0.7))
+        os.environ["MODEL_PROVIDER"] = data.get("provider", "watsonx")
+        os.environ["MODEL_NAME"] = data.get("model", "granite-4-h-small")
+        os.environ["MODEL_TEMPERATURE"] = str(data.get("temperature", 0.0))
         os.environ["MODEL_MAX_TOKENS"] = str(data.get("maxTokens", 4096))
         os.environ["MODEL_TOP_P"] = str(data.get("topP", 1.0))
         logger.info("Model configuration updated (session only)")
@@ -897,6 +897,72 @@ async def save_model_config(request: Request):
     except Exception as e:
         logger.error(f"Failed to save model config: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save model config: {str(e)}")
+
+
+@app.get("/api/models/{provider}")
+async def get_available_models(provider: str):
+    """Endpoint to retrieve available models for a specific provider.
+    
+    Args:
+        provider: Model provider name (watsonx, openai, anthropic, etc.)
+    
+    Returns:
+        JSON array of available model IDs for the provider.
+    """
+    try:
+        # Provider-specific model catalogs
+        # These can be extended to query IBM's model-listing API dynamically
+        model_catalog = {
+            "watsonx": [
+                {
+                    "id": "granite-4-h-small",
+                    "name": "Granite 4.0 Small",
+                    "description": "Balanced performance (default)",
+                    "max_tokens": 8192,
+                    "default": True
+                },
+                {
+                    "id": "granite-4-h-micro",
+                    "name": "Granite 4.0 Micro",
+                    "description": "Lightweight, fast inference",
+                    "max_tokens": 8192,
+                    "default": False
+                },
+                {
+                    "id": "granite-4-h-tiny",
+                    "name": "Granite 4.0 Tiny",
+                    "description": "Minimal resource usage",
+                    "max_tokens": 8192,
+                    "default": False
+                }
+            ],
+            "openai": [
+                {"id": "gpt-4o", "name": "GPT-4o", "description": "Most capable", "max_tokens": 128000, "default": True},
+                {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "description": "Fast and affordable", "max_tokens": 128000, "default": False},
+                {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "description": "Previous generation", "max_tokens": 128000, "default": False}
+            ],
+            "anthropic": [
+                {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "description": "Best balance", "max_tokens": 200000, "default": True},
+                {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus", "description": "Most capable", "max_tokens": 200000, "default": False},
+                {"id": "claude-3-haiku-20240307", "name": "Claude 3 Haiku", "description": "Fastest", "max_tokens": 200000, "default": False}
+            ],
+            "azure": [
+                {"id": "gpt-4o", "name": "GPT-4o (Azure)", "description": "Azure OpenAI", "max_tokens": 128000, "default": True}
+            ],
+            "groq": [
+                {"id": "mixtral-8x7b-32768", "name": "Mixtral 8x7B", "description": "Fast inference", "max_tokens": 32768, "default": True}
+            ]
+        }
+        
+        if provider not in model_catalog:
+            raise HTTPException(status_code=404, detail=f"Provider '{provider}' not supported")
+        
+        return JSONResponse(model_catalog[provider])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get models for provider {provider}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve models: {str(e)}")
 
 
 @app.get("/api/config/knowledge")

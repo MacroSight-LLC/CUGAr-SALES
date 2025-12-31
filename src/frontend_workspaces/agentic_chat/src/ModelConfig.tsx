@@ -18,16 +18,25 @@ interface ModelConfigProps {
 export default function ModelConfig({ onClose }: ModelConfigProps) {
   const [config, setConfig] = useState<ModelConfigData>({
     provider: "watsonx",
-    model: "openai/gpt-oss-120b",
-    temperature: 0.7,
+    model: "granite-4-h-small",
+    temperature: 0.0,
     maxTokens: 4096,
     topP: 1.0,
   });
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [availableModels, setAvailableModels] = useState<Array<{id: string, name: string, description: string}>>([]);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
     loadConfig();
   }, []);
+
+  useEffect(() => {
+    // Load available models when provider changes
+    if (config.provider) {
+      loadAvailableModels(config.provider);
+    }
+  }, [config.provider]);
 
   const loadConfig = async () => {
     try {
@@ -35,14 +44,55 @@ export default function ModelConfig({ onClose }: ModelConfigProps) {
       if (response.ok) {
         const data = await response.json();
         setConfig(data);
+        setErrorMessage("");
+      } else if (response.status === 401) {
+        setErrorMessage("Authentication required. Please set AGENT_TOKEN environment variable.");
+      } else if (response.status === 403) {
+        setErrorMessage("Access forbidden. Please check your authentication token.");
+      } else {
+        setErrorMessage(`Failed to load configuration: ${response.statusText}`);
       }
     } catch (error) {
       console.error("Error loading config:", error);
+      setErrorMessage("Network error. Please check if the backend server is running.");
+    }
+  };
+
+  const loadAvailableModels = async (provider: string) => {
+    try {
+      const response = await fetch(`/api/models/${provider}`);
+      if (response.ok) {
+        const models = await response.json();
+        setAvailableModels(models);
+        // Auto-select default model if current model not in list
+        const defaultModel = models.find((m: any) => m.default);
+        if (defaultModel && !models.find((m: any) => m.id === config.model)) {
+          setConfig(prev => ({ ...prev, model: defaultModel.id }));
+        }
+        setErrorMessage("");
+      } else if (response.status === 404) {
+        setErrorMessage(`Provider '${provider}' is not supported. Please select a different provider.`);
+        setAvailableModels([]);
+      } else if (response.status === 401) {
+        setErrorMessage("Authentication required. Please set AGENT_TOKEN environment variable.");
+        setAvailableModels([]);
+      } else if (response.status === 403) {
+        setErrorMessage("Access forbidden. Please check your authentication token.");
+        setAvailableModels([]);
+      } else {
+        setErrorMessage(`Failed to load models for ${provider}: ${response.statusText}`);
+        setAvailableModels([]);
+      }
+    } catch (error) {
+      console.error("Error loading models:", error);
+      setErrorMessage("Network error. Please check if the backend server is running.");
+      setAvailableModels([]);
     }
   };
 
   const saveConfig = async () => {
     setSaveStatus("saving");
+    setErrorMessage("");
     try {
       const response = await fetch('/api/config/model', {
         method: 'POST',
@@ -53,13 +103,28 @@ export default function ModelConfig({ onClose }: ModelConfigProps) {
       if (response.ok) {
         setSaveStatus("success");
         setTimeout(() => setSaveStatus("idle"), 2000);
+      } else if (response.status === 401) {
+        setSaveStatus("error");
+        setErrorMessage("Authentication required. Please set AGENT_TOKEN environment variable.");
+        setTimeout(() => setSaveStatus("idle"), 3000);
+      } else if (response.status === 403) {
+        setSaveStatus("error");
+        setErrorMessage("Access forbidden. Please check your authentication token.");
+        setTimeout(() => setSaveStatus("idle"), 3000);
+      } else if (response.status === 422) {
+        setSaveStatus("error");
+        setErrorMessage("Invalid configuration format. Please check your inputs.");
+        setTimeout(() => setSaveStatus("idle"), 3000);
       } else {
         setSaveStatus("error");
-        setTimeout(() => setSaveStatus("idle"), 2000);
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        setErrorMessage(`Failed to save: ${errorData.detail || response.statusText}`);
+        setTimeout(() => setSaveStatus("idle"), 3000);
       }
     } catch (error) {
       setSaveStatus("error");
-      setTimeout(() => setSaveStatus("idle"), 2000);
+      setErrorMessage("Network error. Please check if the backend server is running.");
+      setTimeout(() => setSaveStatus("idle"), 3000);
     }
   };
 
@@ -74,6 +139,19 @@ export default function ModelConfig({ onClose }: ModelConfigProps) {
         </div>
 
         <div className="config-modal-content">
+          {errorMessage && (
+            <div className="error-banner" style={{
+              padding: "12px",
+              marginBottom: "16px",
+              backgroundColor: "#fee",
+              border: "1px solid #fcc",
+              borderRadius: "4px",
+              color: "#c00"
+            }}>
+              <strong>Error:</strong> {errorMessage}
+            </div>
+          )}
+          
           <div className="config-card">
             <h3>Language Model Settings</h3>
             <div className="config-form">
@@ -93,12 +171,20 @@ export default function ModelConfig({ onClose }: ModelConfigProps) {
 
               <div className="form-group">
                 <label>Model</label>
-                <input
-                  type="text"
+                <select
                   value={config.model}
                   onChange={(e) => setConfig({ ...config, model: e.target.value })}
-                  placeholder="e.g., claude-3-5-sonnet-20241022"
-                />
+                >
+                  {availableModels.length > 0 ? (
+                    availableModels.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name} - {model.description}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={config.model}>{config.model}</option>
+                  )}
+                </select>
               </div>
 
               <div className="form-group">
@@ -111,7 +197,7 @@ export default function ModelConfig({ onClose }: ModelConfigProps) {
                   value={config.temperature}
                   onChange={(e) => setConfig({ ...config, temperature: parseFloat(e.target.value) })}
                 />
-                <small>Controls randomness: 0 = focused, 2 = creative</small>
+                <small>Controls randomness: 0 = deterministic (Granite default), 2 = creative</small>
               </div>
 
               <div className="form-group">

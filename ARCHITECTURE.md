@@ -3,6 +3,8 @@
 > **For a narrative walkthrough of the complete execution flow**, see [`docs/SYSTEM_EXECUTION_NARRATIVE.md`](docs/SYSTEM_EXECUTION_NARRATIVE.md) - traces request → response with CLI/FastAPI/MCP examples, routing decisions, agent lifecycle, memory operations, and tool execution.
 >
 > **For FastAPI's specific role**, see [`docs/architecture/FASTAPI_ROLE.md`](docs/architecture/FASTAPI_ROLE.md) - clarifies FastAPI as transport layer only (not orchestrator) to prevent mixing transport and orchestration concerns.
+>
+> **For the orchestrator interface and semantics**, see [`docs/orchestrator/README.md`](docs/orchestrator/README.md) - formal specification for orchestrator API, lifecycle callbacks, failure modes, retry semantics, and implementation patterns.
 
 ## Modular Stack
 - Planner → Coordinator → Workers with profile-scoped VectorMemory.

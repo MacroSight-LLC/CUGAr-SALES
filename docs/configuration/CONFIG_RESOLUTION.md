@@ -442,6 +442,323 @@ export MODEL_TEMPERATURE=0.7
 
 ## Configuration Providers
 
+### ConfigResolver Implementation (Phase 3)
+
+**Status**: Implemented  
+**Location**: `src/cuga/config/resolver.py`
+
+#### Architecture
+
+```python
+from cuga.config import ConfigResolver, ConfigLayer, ConfigValue
+
+# Create resolver with multiple sources
+resolver = ConfigResolver()
+
+# Add sources in any order (sorted by layer automatically)
+resolver.add_source(EnvSource(prefixes=["CUGA_", "AGENT_"]))
+resolver.add_source(YAMLSource("configs/agent.yaml"))
+resolver.add_source(TOMLSource("settings.toml"))
+resolver.add_source(DefaultSource("configurations/_shared"))
+
+# Resolve all sources
+resolver.resolve()
+
+# Get value with provenance
+value = resolver.get("llm.model")
+print(value)  # llm.model = granite-4-h-small (from ENV via WATSONX_MODEL)
+
+# Get raw value only
+model_name = resolver.get_value("llm.model")
+
+# List all keys
+print(resolver.keys())  # ['llm.model', 'llm.temperature', ...]
+
+# Dump all config with provenance
+dump = resolver.dump()
+for key, provenance in dump.items():
+    print(provenance)
+```
+
+#### ConfigLayer Precedence
+
+```python
+class ConfigLayer(IntEnum):
+    """Higher value = higher precedence."""
+    HARDCODED = 1   # Hardcoded defaults in source code
+    DEFAULT = 2     # configurations/_shared/*.yaml
+    TOML = 3        # settings.toml, eval_config.toml
+    YAML = 4        # configs/*.yaml, config/registry.yaml
+    DOTENV = 5      # .env.mcp, .env, .env.example
+    ENV = 6         # os.environ (direct environment variables)
+    CLI = 7         # CLI arguments (highest)
+```
+
+#### ConfigValue Provenance
+
+```python
+@dataclass(frozen=True)
+class ConfigValue:
+    """Immutable config value with full provenance."""
+    value: Any                # The actual configuration value
+    layer: ConfigLayer        # Which precedence layer provided this
+    source: str               # Source identifier (filename, "os.environ", etc.)
+    path: str                 # Dotted path (e.g., "llm.model.platform")
+    timestamp: datetime       # When resolved (for debugging)
+```
+
+#### ConfigSource Interface
+
+```python
+class ConfigSource(ABC):
+    """Abstract interface for configuration sources."""
+    
+    @property
+    @abstractmethod
+    def layer(self) -> ConfigLayer:
+        """The precedence layer this source provides."""
+        pass
+    
+    @property
+    @abstractmethod
+    def source_name(self) -> str:
+        """Identifier for this source."""
+        pass
+    
+    @abstractmethod
+    def load(self) -> Dict[str, Any]:
+        """Load configuration from this source."""
+        pass
+```
+
+**Implementations**:
+- `EnvSource`: Loads from `os.environ` with prefix filtering and nested key support (`AGENT__LLM__MODEL` → `agent.llm.model`)
+- `DotEnvSource`: Parses .env files with quote stripping and nested keys
+- `YAMLSource`: Loads YAML files with `yaml.safe_load()`
+- `TOMLSource`: Loads TOML files with `tomllib.load()`
+- `DefaultSource`: Loads and merges multiple YAML files from configurations/_shared/
+
+#### Deep Merge Algorithm
+
+```python
+# For nested dicts, merge keys recursively
+# For scalars/lists, higher precedence wins (override)
+
+base = {"llm": {"model": "base", "temperature": 0.5}}
+update = {"llm": {"model": "override"}}
+
+# Result: {"llm": {"model": "override", "temperature": 0.5}}
+```
+
+#### Provenance Tracking
+
+All resolved values track their source:
+
+```python
+resolver = ConfigResolver()
+resolver.add_source(YAMLSource("configs/agent.yaml"))
+resolver.add_source(EnvSource())
+resolver.resolve()
+
+# Get value with metadata
+value = resolver.get("llm.model")
+print(f"Value: {value.value}")
+print(f"Layer: {value.layer.name}")
+print(f"Source: {value.source}")
+print(f"Resolved at: {value.timestamp}")
+
+# Output:
+# Value: granite-4-h-small
+# Layer: ENV
+# Source: os.environ
+# Resolved at: 2025-12-31 12:34:56.789
+```
+
+#### Usage Patterns
+
+**Pattern 1: Basic Resolution**
+
+```python
+from cuga.config import ConfigResolver, EnvSource, YAMLSource
+
+resolver = ConfigResolver()
+resolver.add_source(YAMLSource("configs/agent.yaml"))
+resolver.add_source(EnvSource())
+resolver.resolve()
+
+model = resolver.get_value("llm.model", default="granite-4-h-small")
+temperature = resolver.get_value("llm.temperature", default=0.0)
+```
+
+**Pattern 2: Observability-First**
+
+```python
+# Track all config sources for debugging
+resolver = ConfigResolver()
+resolver.add_source(DefaultSource("configurations/_shared"))
+resolver.add_source(TOMLSource("settings.toml"))
+resolver.add_source(YAMLSource(f"configs/{profile}.yaml"))
+resolver.add_source(DotEnvSource(".env"))
+resolver.add_source(EnvSource(prefixes=["CUGA_", "AGENT_"]))
+resolver.resolve()
+
+# Log provenance for all keys
+for key in resolver.keys():
+    logger.info(resolver.get_provenance(key))
+
+# Example output:
+# llm.model = granite-4-h-small (from ENV via os.environ)
+# llm.temperature = 0.0 (from DOTENV via .env)
+# profile = production (from YAML via configs/production.yaml)
+```
+
+**Pattern 3: Testing with Overrides**
+
+```python
+# In tests, use hardcoded values (no file I/O)
+from cuga.config import ConfigResolver, ConfigLayer, ConfigValue
+
+def test_config():
+    resolver = ConfigResolver()
+    # Manually inject test values
+    resolver._cache = {
+        "llm.model": "test-model",
+        "llm.temperature": 0.0,
+    }
+    resolver._resolved = {
+        "llm.model": ConfigValue("test-model", ConfigLayer.HARDCODED, "test", "llm.model"),
+        "llm.temperature": ConfigValue(0.0, ConfigLayer.HARDCODED, "test", "llm.temperature"),
+    }
+    
+    assert resolver.get_value("llm.model") == "test-model"
+```
+
+#### Integration with Existing Loaders
+
+ConfigResolver is **additive** — it doesn't replace Dynaconf/Hydra:
+
+```python
+# Option 1: Use ConfigResolver alongside Dynaconf
+from dynaconf import Dynaconf
+from cuga.config import ConfigResolver, TOMLSource, EnvSource
+
+# Dynaconf for complex validation/environments
+dynaconf_settings = Dynaconf(settings_files=["settings.toml"])
+
+# ConfigResolver for explicit precedence tracking
+resolver = ConfigResolver()
+resolver.add_source(TOMLSource("settings.toml"))
+resolver.add_source(EnvSource())
+resolver.resolve()
+
+# Use whichever fits the use case
+model_from_dynaconf = dynaconf_settings.llm.model
+model_with_provenance = resolver.get("llm.model")
+
+# Option 2: Migrate gradually (backward compatible)
+# Add ConfigResolver calls alongside existing config reads
+# Verify both return same value
+# Once verified, remove old config reads
+```
+
+#### Environment Mode Validation
+
+**Status**: Implemented  
+**Location**: `src/cuga/config/validators.py`
+
+```python
+from cuga.config import validate_environment_mode, EnvironmentMode, validate_startup
+
+# Validate environment for specific mode
+result = validate_environment_mode(EnvironmentMode.SERVICE)
+
+if not result.is_valid:
+    print(f"Missing required vars: {result.missing_required}")
+    print(f"Suggestions: {result.suggestions}")
+    raise RuntimeError("Invalid environment")
+
+# Or use fail-fast validation at startup
+validate_startup(EnvironmentMode.SERVICE, fail_fast=True)  # Raises on error
+```
+
+**Supported Modes**:
+- `LOCAL`: Local CLI development (requires model API key)
+- `SERVICE`: FastAPI backend (requires `AGENT_TOKEN`, `AGENT_BUDGET_CEILING`, model API key)
+- `MCP`: MCP orchestration (requires `MCP_SERVERS_FILE`, `CUGA_PROFILE_SANDBOX`, model API key)
+- `TEST`: CI/test mode (no env vars required, uses defaults/mocks)
+
+**Provider Detection**:
+
+Validates at least one complete provider is configured:
+
+```python
+PROVIDER_VARS = {
+    "watsonx": ["WATSONX_API_KEY", "WATSONX_PROJECT_ID"],
+    "openai": ["OPENAI_API_KEY"],
+    "anthropic": ["ANTHROPIC_API_KEY"],
+    "azure": ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"],
+    "groq": ["GROQ_API_KEY"],
+}
+```
+
+If no provider is complete, suggests Watsonx (default) credentials first.
+
+**Helpful Error Messages**:
+
+```python
+# Example validation failure
+try:
+    validate_startup(EnvironmentMode.SERVICE, fail_fast=True)
+except RuntimeError as e:
+    print(e)
+
+# Output:
+# Environment validation failed for service mode.
+# Missing 2 required variables:
+#   - AGENT_TOKEN
+#   - WATSONX_PROJECT_ID
+# 
+# Suggestions:
+#   • Set AGENT_TOKEN for API authentication (required for service mode). 
+#     Generate with: openssl rand -hex 32
+#   • Set WATSONX_PROJECT_ID with watsonx.ai project ID. 
+#     See: https://dataplatform.cloud.ibm.com/projects
+# 
+# See docs/configuration/ENVIRONMENT_MODES.md for complete requirements.
+```
+
+#### Testing
+
+**Coverage**: 
+- `tests/unit/config/test_config_resolution.py` (59 tests)
+- `tests/unit/config/test_env_validation.py` (24 tests)
+
+**Key Test Scenarios**:
+- Precedence order enforcement (ENV > DOTENV > YAML > TOML > DEFAULT)
+- Deep merge for nested dicts
+- Override for scalars/lists
+- Provenance tracking across all layers
+- Missing file graceful handling
+- Environment mode validation (all 4 modes)
+- Provider detection (watsonx, openai, anthropic, azure, groq)
+- Partial credentials detection
+- Helpful error messages
+
+**Run Tests**:
+
+```bash
+# Run all config tests
+pytest tests/unit/config/ -v
+
+# Run with coverage
+pytest tests/unit/config/ --cov=src/cuga/config --cov-report=term-missing
+
+# Run specific test class
+pytest tests/unit/config/test_config_resolution.py::TestConfigResolver -v
+```
+
+---
+
 ### Dynaconf Integration
 
 ```python

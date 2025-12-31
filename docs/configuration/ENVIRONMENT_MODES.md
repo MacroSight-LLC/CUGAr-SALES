@@ -63,15 +63,26 @@ Clear env requirements per mode:
 #### Required Environment Variables
 
 ```bash
-# Model Configuration (REQUIRED)
+# Model Configuration (REQUIRED - choose one provider)
+
+# IBM Watsonx / Granite 4.0 (DEFAULT PROVIDER)
+WATSONX_API_KEY=...                    # IBM Cloud API key (required)
+WATSONX_PROJECT_ID=...                 # Watsonx project ID (required)
+WATSONX_URL=...                        # Watsonx API endpoint (optional, defaults to IBM Cloud)
+# Available models: granite-4-h-small (default), granite-4-h-micro, granite-4-h-tiny
+
+# OR OpenAI
 OPENAI_API_KEY=sk-...                  # OpenAI API key
-# OR
+
+# OR Azure OpenAI
 AZURE_OPENAI_API_KEY=...               # Azure OpenAI key
 AZURE_OPENAI_ENDPOINT=https://...      # Azure endpoint
-# OR
+
+# OR Groq
 GROQ_API_KEY=gsk_...                   # Groq API key
-# OR
-IBM_WATSONX_APIKEY=...                 # IBM Watsonx key
+
+# OR Anthropic
+ANTHROPIC_API_KEY=...                  # Anthropic API key
 
 # Profile Configuration (OPTIONAL - has defaults)
 PROFILE=demo_power                     # Execution profile (default: demo_power)
@@ -136,7 +147,84 @@ if errors:
 
 # Output if missing API key:
 # ❌ OPENAI_API_KEY: At least one model API key required 
-#    (OPENAI_API_KEY, AZURE_OPENAI_API_KEY, GROQ_API_KEY, or IBM_WATSONX_APIKEY)
+#    (WATSONX_API_KEY, OPENAI_API_KEY, AZURE_OPENAI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY)
+```
+
+---
+
+## Provider-Specific Configuration
+
+### IBM Watsonx / Granite 4.0 (Default Provider)
+
+**Granite 4.0** is the default LLM provider with deterministic, reproducible outputs (temperature=0.0).
+
+#### Required Environment Variables
+
+```bash
+WATSONX_API_KEY=...                    # IBM Cloud API key (required)
+WATSONX_PROJECT_ID=...                 # Watsonx project ID (required)
+```
+
+#### Optional Environment Variables
+
+```bash
+WATSONX_URL=...                        # Watsonx API endpoint (optional, defaults to IBM Cloud)
+MODEL_NAME=granite-4-h-small           # Granite 4.0 model variant (default: granite-4-h-small)
+```
+
+#### Available Granite 4.0 Models
+
+| Model ID | Description | Use Case | Max Tokens |
+|----------|-------------|----------|------------|
+| `granite-4-h-small` | Balanced performance (default) | General purpose, production | 8192 |
+| `granite-4-h-micro` | Lightweight, fast inference | High-throughput, cost-sensitive | 8192 |
+| `granite-4-h-tiny` | Minimal resource usage | Edge deployment, rapid prototyping | 8192 |
+
+#### Configuration Files
+
+- **Provider defaults**: `src/cuga/providers/watsonx_provider.py`
+- **Agent-specific models**: `src/cuga/configurations/models/settings.watsonx.toml`
+- **Example usage**: `examples/granite_function_calling.py`
+
+#### Startup Validation
+
+WatsonxProvider validates required credentials at initialization:
+
+```python
+from cuga.providers.watsonx_provider import WatsonxProvider
+
+# Raises RuntimeError if WATSONX_API_KEY or WATSONX_PROJECT_ID missing
+provider = WatsonxProvider()
+```
+
+**Error Message**:
+```
+RuntimeError: Missing required Watsonx credentials: WATSONX_API_KEY, WATSONX_PROJECT_ID. 
+Set these environment variables or pass them to WatsonxProvider constructor. 
+See docs/configuration/ENVIRONMENT_MODES.md for setup instructions.
+```
+
+#### Deterministic Configuration
+
+Granite 4.0 uses deterministic defaults for reproducible outputs:
+
+- **temperature**: 0.0 (stable, no randomness)
+- **decoding_method**: "greedy" (deterministic token selection)
+- **seed**: Optional (e.g., `seed=42` for full reproducibility)
+
+```python
+# Fully deterministic call
+provider = WatsonxProvider(temperature=0.0)
+result = provider.generate("hello granite", seed=42)
+```
+
+#### LangFlow Integration
+
+Granite 4.0 is available in LangFlow workflows via the `Watsonx Granite` component:
+
+```python
+# LangFlow component: src/cuga/langflow_components/watsonx_llm_component.py
+display_name = "Watsonx Granite"
 ```
 
 ---

@@ -185,18 +185,18 @@ class LLMManager:
                 logger.info(f"No model_name specified, using default: {default_model}")
                 return default_model
         elif platform == "watsonx":
-            # For WatsonX, check environment variables
+            # For Watsonx/Granite, check environment variables first
             env_model_name = os.environ.get('MODEL_NAME')
             if env_model_name:
-                logger.info(f"Using MODEL_NAME from environment for WatsonX: {env_model_name}")
+                logger.info(f"Using MODEL_NAME from environment for Watsonx: {env_model_name}")
                 return env_model_name
             elif toml_model_name:
                 logger.debug(f"Using model_name from TOML: {toml_model_name}")
                 return toml_model_name
             else:
-                # Default fallback for WatsonX
-                default_model = "meta-llama/llama-4-maverick-17b-128e-instruct-fp8"
-                logger.info(f"No model_name specified for WatsonX, using default: {default_model}")
+                # Default Granite 4.0 model (stable, balanced performance)
+                default_model = "granite-4-h-small"
+                logger.info(f"No model_name specified for Watsonx, using Granite 4.0 default: {default_model}")
                 return default_model
         elif platform == "azure":
             # For Azure, check environment variables

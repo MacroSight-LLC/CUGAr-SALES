@@ -1070,4 +1070,27 @@ LOGGER.info(f"Routing decision: {decision}")
 
 ---
 
+## 📚 Related Documentation
+
+### Architecture
+- **[Orchestrator Interface and Semantics](orchestrator/README.md)** - Formal specification for orchestrator API with lifecycle callbacks, failure modes, retry semantics, execution context, routing authority, and implementation patterns
+- **[FastAPI Role Clarification](architecture/FASTAPI_ROLE.md)** - Defines FastAPI as transport layer only (vs orchestration) to prevent mixing concerns
+- **[Architecture Overview](../ARCHITECTURE.md)** - High-level system design with modular stack, scheduling, and tooling
+
+### Agent Contracts
+- **[Agent I/O Contract](agents/AGENT_IO_CONTRACT.md)** - AgentRequest/AgentResponse standardization
+- **[Agent Lifecycle](agents/AGENT_LIFECYCLE.md)** - Agent startup/shutdown/health contracts
+- **[State Ownership](agents/STATE_OWNERSHIP.md)** - AGENT vs MEMORY vs ORCHESTRATOR state boundaries
+
+### Configuration
+- **[Environment Modes](configuration/ENVIRONMENT_MODES.md)** - Environment requirements per execution mode (local/service/MCP/test)
+- **[Config Resolution](configuration/CONFIG_RESOLUTION.md)** - Configuration precedence layers (CLI → env → .env → YAML → TOML → defaults)
+
+### Testing
+- **[Scenario Testing](testing/SCENARIO_TESTING.md)** - End-to-end orchestration scenario tests
+- **[Coverage Matrix](testing/COVERAGE_MATRIX.md)** - Test coverage by architectural layer
+
+---
+
 **For questions or improvements to this narrative, see [`CONTRIBUTING.md`](../CONTRIBUTING.md).**
+

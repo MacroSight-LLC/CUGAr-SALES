@@ -3,6 +3,16 @@
 This guide walks you through setting up and running the CUGAR agent system.
 
 > **For a complete understanding of how requests flow through the system**, see [System Execution Narrative](SYSTEM_EXECUTION_NARRATIVE.md) - traces request → routing → agent → memory → response with examples for CLI, FastAPI, and MCP modes.
+>
+> **For the orchestrator interface and semantics**, see [Orchestrator Interface](orchestrator/README.md) - formal specification for lifecycle callbacks, failure modes, retry semantics, and implementation patterns.
+>
+> **For enterprise workflow examples**, see [Enterprise Workflows](examples/ENTERPRISE_WORKFLOWS.md) - comprehensive end-to-end examples with planning, error recovery, HITL gates, and external API automation.
+>
+> **For observability and debugging**, see [Observability Guide](observability/OBSERVABILITY_GUIDE.md) - structured logging, distributed tracing, metrics, error introspection, and troubleshooting.
+>
+> **For test coverage mapping**, see [Test Coverage Map](testing/TEST_COVERAGE_MAP.md) - comprehensive coverage by architectural component with critical gaps and testing priorities.
+>
+> **For developer onboarding**, see [Developer Onboarding Guide](DEVELOPER_ONBOARDING.md) - step-by-step walkthrough for newcomers with hands-on examples building your first tool and agent.
 
 ## Prerequisites
 

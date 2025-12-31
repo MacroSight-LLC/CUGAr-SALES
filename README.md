@@ -46,6 +46,22 @@ Policy and change-management guardrails are maintained in [AGENTS.md](AGENTS.md)
 
 For a role-by-role, mode-aware walkthrough of how the controller, planners, executors, and MCP tool packs fit together (plus configuration keys), see [docs/agents/architecture.md](docs/agents/architecture.md). For an MCP + LangChain web stack overview that covers the FastAPI backend, Vue 3 frontend, streaming flows, and configuration surfaces, see [docs/MCP_LANGCHAIN_OVERVIEW.md](docs/MCP_LANGCHAIN_OVERVIEW.md). A step-by-step stable local launch checklist (registry + sandbox + Langflow readiness) lives in [docs/local_stable_launch.md](docs/local_stable_launch.md).
 
+## Documentation
+
+📘 **[System Execution Narrative](docs/SYSTEM_EXECUTION_NARRATIVE.md)** - Complete request → response flow for contributor onboarding (3 entry points: CLI/FastAPI/MCP, 8 execution phases with security boundaries, observability integration, debugging tips, testing guidance)
+
+🔧 **[FastAPI Role Clarification](docs/architecture/FASTAPI_ROLE.md)** - Defines FastAPI as transport layer only (HTTP/SSE, auth, budget enforcement) vs orchestration (planning, coordination, execution) to prevent mixing concerns
+
+⚙️ **[Orchestrator Interface and Semantics](docs/orchestrator/README.md)** - Formal specification for orchestrator API with lifecycle callbacks, failure taxonomy, retry semantics, execution context, routing authority, and implementation patterns
+
+🏢 **[Enterprise Workflow Examples](docs/examples/ENTERPRISE_WORKFLOWS.md)** - Comprehensive end-to-end workflow examples for typical enterprise use cases (customer onboarding, incident response, data pipelines) with planning, error recovery, HITL gates, and external API automation
+
+📊 **[Observability and Debugging Guide](docs/observability/OBSERVABILITY_GUIDE.md)** - Comprehensive instrumentation guide with structured logging, distributed tracing (OpenTelemetry/LangFuse/LangSmith), metrics collection, error introspection, replayable traces, dashboards, and troubleshooting playbooks
+
+🧪 **[Test Coverage Map](docs/testing/TEST_COVERAGE_MAP.md)** - Comprehensive test coverage aligned with architectural components showing what's tested (orchestrator 80%, routing 85%, failures 90%) and critical gaps (tools 30%, memory 20%, config 0%, observability 0%) with priorities for additional testing
+
+👋 **[Developer Onboarding Guide](docs/DEVELOPER_ONBOARDING.md)** - Step-by-step walkthrough for newcomers: environment setup (15 min), first agent interaction (10 min), create custom tool (20 min), build custom agent (30 min), wire components together (15 min) with full working examples (calculator tool, math tutor agent, tutoring workflow)
+
 ## Quickstart
 ```bash
 # 1) Install (Python >=3.10)
@@ -116,10 +132,18 @@ See `AGENTS.md` for role details and `USAGE.md` for end-to-end flows.
 - CI (GitHub Actions) runs lint, type-check, tests, and guardrail verification on pushes/PRs.
 
 ## FAQ
-- **Which LLMs are supported?** Any LangChain/LiteLLM-compatible model (OpenAI, Azure, Groq, IBM watsonx, Google GenAI).
+- **Which LLMs are supported?** 
+  - OpenAI (GPT-4o, GPT-4 Turbo)
+  - Azure OpenAI
+  - Anthropic (Claude 3.5 Sonnet, Opus, Haiku)
+  - **IBM Watsonx / Granite 4.0** (granite-4-h-small, granite-4-h-micro, granite-4-h-tiny) — **Default provider** with deterministic temperature=0.0
+  - Groq (Mixtral)
+  - Google GenAI
+  - Any LangChain-compatible model via adapters
 - **Do I need a vector DB?** Not for quickstarts; an in-memory store is bundled. For production use Chroma/Qdrant/Weaviate/Milvus.
 - **How do I add a new tool?** Implement `ToolSpec` in `tools/registry.py` or wrap an MCP server; see `USAGE.md`.
 - **Is this production-ready?** Core stack follows sandboxed, profile-scoped design with observability. Harden configs before internet-facing use.
+- **How do I configure Watsonx/Granite?** Set environment variables: `WATSONX_API_KEY`, `WATSONX_PROJECT_ID`, and optionally `WATSONX_URL`. See `docs/configuration/ENVIRONMENT_MODES.md` for details.
 
 ## Documentation
 
