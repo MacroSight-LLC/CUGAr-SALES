@@ -221,9 +221,7 @@ class ALTKLifecycleManager:
         setattr(state, "_enhanced_prompt_applied", True)
         return state
 
-    def validate_tool_calls(
-        self, tool_calls: Optional[Iterable[Any]]
-    ) -> Optional[List[Dict[str, Any]]]:
+    def validate_tool_calls(self, tool_calls: Optional[Iterable[Any]]) -> Optional[List[Dict[str, Any]]]:
         normalized_calls = normalize_tool_calls(tool_calls)
         if not (self.enabled and self.tool_validator and normalized_calls):
             return normalized_calls
@@ -245,4 +243,3 @@ class ALTKLifecycleManager:
     @classmethod
     def from_settings(cls, enabled: bool) -> "ALTKLifecycleManager":
         return cls(enabled=enabled)
-

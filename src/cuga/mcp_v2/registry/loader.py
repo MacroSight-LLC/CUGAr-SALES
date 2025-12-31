@@ -106,7 +106,9 @@ def _parse_server(name: str, raw: Mapping[str, Any], env: Mapping[str, str]) -> 
     )
 
 
-def _merge_servers(documents: Iterable[tuple[Path, Mapping[str, Any]]], env: Mapping[str, str]) -> tuple[MCPServerDefinition, ...]:
+def _merge_servers(
+    documents: Iterable[tuple[Path, Mapping[str, Any]]], env: Mapping[str, str]
+) -> tuple[MCPServerDefinition, ...]:
     merged: list[MCPServerDefinition] = []
     seen: dict[str, Path] = {}
     for source_path, document in documents:

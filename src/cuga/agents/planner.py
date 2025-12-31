@@ -51,7 +51,9 @@ class Planner:
             return latency + (0.1 * cost)
         return (cost + latency) / 2
 
-    def plan(self, goal: str, registry: ToolRegistry, *, preferences: PlanningPreferences | None = None) -> PlanningResult:
+    def plan(
+        self, goal: str, registry: ToolRegistry, *, preferences: PlanningPreferences | None = None
+    ) -> PlanningResult:
         prefs = preferences or PlanningPreferences()
         trace: List[str] = []
 

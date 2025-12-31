@@ -19,7 +19,12 @@ class Planner:
     def __init__(self, tracer: InMemoryTracer | None = None) -> None:
         self.tracer = tracer or InMemoryTracer()
 
-    async def plan(self, goal: str, metadata: Dict[str, Any] | None = None, stream_cb: Callable[[Dict[str, Any]], None] | None = None) -> List[PlanStep]:
+    async def plan(
+        self,
+        goal: str,
+        metadata: Dict[str, Any] | None = None,
+        stream_cb: Callable[[Dict[str, Any]], None] | None = None,
+    ) -> List[PlanStep]:
         metadata = metadata or {}
         trace_id = metadata.get("trace_id") or str(uuid.uuid4())
         propagate_trace(trace_id)

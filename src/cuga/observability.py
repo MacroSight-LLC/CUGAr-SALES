@@ -1,4 +1,5 @@
 """Lightweight observability helpers that stay offline-friendly."""
+
 from __future__ import annotations
 
 import contextvars

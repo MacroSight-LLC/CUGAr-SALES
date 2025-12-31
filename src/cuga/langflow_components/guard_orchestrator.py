@@ -1,4 +1,5 @@
 """Langflow guard orchestrator component with unique identity."""
+
 from __future__ import annotations
 
 import importlib
@@ -11,6 +12,7 @@ if _lfx_spec:
     from lfx.io import MessageTextInput, Output
     from lfx.schema import Data
 else:  # pragma: no cover - optional dependency
+
     class Component:  # type: ignore
         ...
 

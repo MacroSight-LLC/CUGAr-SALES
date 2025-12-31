@@ -102,4 +102,3 @@ def budget_from_env(env: Dict[str, str]) -> BudgetConfig:
         daily_budget_usd=float(daily_budget) if daily_budget else None,
         enforce=env.get("AGENT_BUDGET_ENFORCE", "warn"),
     )
-

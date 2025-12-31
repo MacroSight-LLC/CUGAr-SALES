@@ -164,7 +164,9 @@ def _fallback_yaml_parse(content: str) -> Dict[str, Any]:
                 mapping[key] = child
             while i < len(tokens):
                 next_indent, next_text = tokens[i]
-                if next_indent < item_indent or (next_text.startswith("- ") and next_indent == current_indent):
+                if next_indent < item_indent or (
+                    next_text.startswith("- ") and next_indent == current_indent
+                ):
                     break
                 if ":" not in next_text:
                     i += 1

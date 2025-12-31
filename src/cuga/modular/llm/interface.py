@@ -5,8 +5,7 @@ from typing import Protocol
 
 
 class LLM(Protocol):
-    def generate(self, prompt: str, temperature: float = 0.0) -> str:
-        ...
+    def generate(self, prompt: str, temperature: float = 0.0) -> str: ...
 
 
 @dataclass

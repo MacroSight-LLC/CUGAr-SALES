@@ -98,7 +98,9 @@ def collect_changed_files(base_ref: str | None = None) -> list[str]:
         return []
 
     branch = normalized.removeprefix("origin/")
-    subprocess.run(["git", "fetch", "origin", branch], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(
+        ["git", "fetch", "origin", branch], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
 
     diff_args = ["git", "diff", "--name-only", f"{normalized}...HEAD"]
     result = subprocess.run(diff_args, capture_output=True, text=True, check=False)
@@ -128,7 +130,9 @@ def ensure_root_guardrails(content: str) -> list[str]:
 
     missing_interfaces = [kw for kw in CONFIG.interface_keywords if kw.lower() not in lowered]
     if missing_interfaces:
-        errors.append("Root guardrails must document planner/worker/coordinator contracts and trace expectations.")
+        errors.append(
+            "Root guardrails must document planner/worker/coordinator contracts and trace expectations."
+        )
 
     return errors
 
@@ -145,7 +149,9 @@ def ensure_allowlisted_inherit_markers(repo_root: Path) -> list[str]:
             continue
         content = marker.read_text(encoding="utf-8").strip()
         if INHERIT_MARKER not in content:
-            errors.append(f"Guardrail inheritance marker in {dirname} must state that root guardrails apply unchanged.")
+            errors.append(
+                f"Guardrail inheritance marker in {dirname} must state that root guardrails apply unchanged."
+            )
     return errors
 
 
@@ -156,7 +162,9 @@ def ensure_local_agents_inherit(repo_root: Path) -> list[str]:
             continue
         content = agents_file.read_text(encoding="utf-8")
         if "canonical" in content.lower():
-            errors.append(f"{agents_file} must not claim canonical status; root AGENTS.md is the single source of truth.")
+            errors.append(
+                f"{agents_file} must not claim canonical status; root AGENTS.md is the single source of truth."
+            )
         if INHERIT_MARKER not in content:
             errors.append(f"{agents_file} must include the inheritance marker to defer to root guardrails.")
     return errors
@@ -216,7 +224,8 @@ def check_guardrail_change_requirements(changed_files: Iterable[str], changelog_
     missing_docs = [doc for doc in CONFIG.required_docs if doc not in changed]
     if missing_docs:
         errors.append(
-            "Guardrail changes must update documentation and runbooks; missing updates for: " + ", ".join(missing_docs)
+            "Guardrail changes must update documentation and runbooks; missing updates for: "
+            + ", ".join(missing_docs)
         )
 
     return errors
@@ -247,8 +256,12 @@ def run_checks(changed_files: Iterable[str] | None = None, base: str | None = No
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Validate guardrail guardrails, inheritance markers, and doc coverage.")
-    parser.add_argument("--base", help="Git ref used to collect changed files (defaults to origin/<default-branch>)")
+    parser = argparse.ArgumentParser(
+        description="Validate guardrail guardrails, inheritance markers, and doc coverage."
+    )
+    parser.add_argument(
+        "--base", help="Git ref used to collect changed files (defaults to origin/<default-branch>)"
+    )
     parser.add_argument(
         "--changed-file",
         action="append",

@@ -57,7 +57,12 @@ def handle_run(args: argparse.Namespace) -> int:
     resolved_profile = _resolve_profile(controller, args.profile)
     preferences = PlanningPreferences(optimization=args.optimize_for)
     result = controller.run(args.goal, resolved_profile, preferences=preferences)
-    payload = {"profile": resolved_profile, "steps": result.steps, "output": result.output, "trace": result.trace}
+    payload = {
+        "profile": resolved_profile,
+        "steps": result.steps,
+        "output": result.output,
+        "trace": result.trace,
+    }
     print(json.dumps(payload, indent=2))
     return 0
 
@@ -67,14 +72,21 @@ def handle_export(args: argparse.Namespace) -> int:
     resolved_profile = _resolve_profile(controller, args.profile)
     preferences = PlanningPreferences(optimization=args.optimize_for)
     result = controller.run(args.goal, resolved_profile, preferences=preferences)
-    payload = {"profile": resolved_profile, "steps": result.steps, "output": result.output, "trace": result.trace}
+    payload = {
+        "profile": resolved_profile,
+        "steps": result.steps,
+        "output": result.output,
+        "trace": result.trace,
+    }
     Path(args.output).write_text(json.dumps(payload, indent=2))
     print(f"Exported results to {args.output}")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Interact with cugar-agent profiles and tools from the terminal.")
+    parser = argparse.ArgumentParser(
+        description="Interact with cugar-agent profiles and tools from the terminal."
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     list_parser = subparsers.add_parser("list", help="List available agents and plugins.")
@@ -88,7 +100,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--optimize-for", choices=["balanced", "cost", "latency"], default="balanced")
     run_parser.set_defaults(func=handle_run)
 
-    export_parser = subparsers.add_parser("export", help="Run a task and export the structured result to disk.")
+    export_parser = subparsers.add_parser(
+        "export", help="Run a task and export the structured result to disk."
+    )
     export_parser.add_argument("goal", help="Goal or task for the agent to accomplish.")
     export_parser.add_argument("--output", required=True, help="Where to export the run results.")
     export_parser.add_argument("--profile", help="Target profile to execute under.")

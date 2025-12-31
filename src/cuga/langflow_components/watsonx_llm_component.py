@@ -1,4 +1,5 @@
 """Langflow Watsonx LLM component wiring the provider."""
+
 from __future__ import annotations
 
 from typing import Any, Dict

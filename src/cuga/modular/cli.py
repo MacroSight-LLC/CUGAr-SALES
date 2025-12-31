@@ -58,7 +58,11 @@ def handle_plan(args: argparse.Namespace) -> None:
     coordinator = CoordinatorAgent(planner=planner, workers=[worker], memory=memory)
     result = coordinator.dispatch(args.goal, trace_id=args.trace_id)
     _persist_memory(memory, state_path)
-    LOGGER.info(json.dumps({"event": "plan", "output": result.output, "trace": result.trace, "trace_id": args.trace_id}))
+    LOGGER.info(
+        json.dumps(
+            {"event": "plan", "output": result.output, "trace": result.trace, "trace_id": args.trace_id}
+        )
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -41,7 +41,9 @@ def _handle(payload: Dict[str, Any]) -> Dict[str, Any]:
     if action == "list_patterns":
         result = _list_patterns()
     elif action == "generate_plan":
-        result = _generate_plan(params.get("params", {}) if isinstance(params.get("params", {}), dict) else {})
+        result = _generate_plan(
+            params.get("params", {}) if isinstance(params.get("params", {}), dict) else {}
+        )
     else:
         raise RequestError("Unsupported action", details={"action": action})
     return {"ok": True, "result": result, "meta": {"tool": "moon_agents", "action": action}}

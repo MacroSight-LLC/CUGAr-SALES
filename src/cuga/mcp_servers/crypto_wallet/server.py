@@ -116,7 +116,9 @@ def _handle(payload: Dict[str, Any]) -> Dict[str, Any]:
     operation = params.get("operation")
     if not isinstance(operation, str):
         raise RequestError("'operation' must be provided", details={"field": "operation"})
-    result = _handle_operation(operation, params.get("params", {}) if isinstance(params.get("params", {}), dict) else {})
+    result = _handle_operation(
+        operation, params.get("params", {}) if isinstance(params.get("params", {}), dict) else {}
+    )
     return {"ok": True, "result": result, "meta": {"tool": "crypto_wallet", "operation": operation}}
 
 

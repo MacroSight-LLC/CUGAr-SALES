@@ -33,7 +33,9 @@ def load_profile(profile_name: str, profiles_dir: Path) -> Tuple[dict, Path]:
     if not isinstance(output, str) or not output:
         raise ValueError(f"Profile '{profile_name}' must define an 'output' path")
 
-    langflow_prod_projects = profile_data.get("langflow_prod_projects", profile.get("langflow_prod_projects", {}))
+    langflow_prod_projects = profile_data.get(
+        "langflow_prod_projects", profile.get("langflow_prod_projects", {})
+    )
     if langflow_prod_projects is None:
         langflow_prod_projects = {}
     if not isinstance(langflow_prod_projects, dict):
@@ -174,7 +176,10 @@ def main() -> None:
     args = parse_args()
     profile, profile_path = load_profile(args.profile, args.profiles_dir)
 
-    fragment_paths = [Path(path) if Path(path).is_absolute() else profile_path.parent / path for path in profile["fragments"]]
+    fragment_paths = [
+        Path(path) if Path(path).is_absolute() else profile_path.parent / path
+        for path in profile["fragments"]
+    ]
     merged = merge_fragments(fragment_paths, langflow_prod_projects=profile.get("langflow_prod_projects"))
 
     if not isinstance(merged.get("mcpServers"), dict) or not isinstance(merged.get("services"), list):

@@ -13,4 +13,3 @@ def discover_from_path(path: str) -> MCPConfig:
 
 def discover_default() -> MCPConfig:
     return load_config()
-

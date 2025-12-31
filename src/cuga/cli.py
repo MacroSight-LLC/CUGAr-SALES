@@ -551,7 +551,11 @@ def start(
     """
     client = get_llm_client()
     base_url = getattr(client, "base_url", "")
-    mode = "Hybrid" if hasattr(client, "fallback") else ("Local" if not getattr(client, "api_key", None) else "Hosted")
+    mode = (
+        "Hybrid"
+        if hasattr(client, "fallback")
+        else ("Local" if not getattr(client, "api_key", None) else "Hosted")
+    )
     logger.info(
         f"LLM client ready mode={mode} model={getattr(client, 'model', 'unknown')} base_url={base_url or 'default'}"
     )

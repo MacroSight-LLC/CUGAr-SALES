@@ -34,7 +34,7 @@ def _json_query(data: Any, expression: str) -> Any:
             end = expression.find("]", idx)
             if end == -1:
                 raise RequestError("Malformed query", details={"expression": expression})
-            parts.append(expression[idx:end + 1])
+            parts.append(expression[idx : end + 1])
             idx = end
         else:
             buf += ch
@@ -159,13 +159,18 @@ def _handle(payload: Dict[str, Any]) -> Dict[str, Any]:
     method = payload.get("method")
     params = payload.get("params", {}) if isinstance(payload.get("params", {}), dict) else {}
     if method == "health":
-        return {"ok": True, "result": {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}}
+        return {
+            "ok": True,
+            "result": {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()},
+        }
     if method != "execute":
         raise RequestError("Unsupported method", details={"method": method})
     tool = params.get("tool")
     if not isinstance(tool, str):
         raise RequestError("'tool' must be provided", details={"field": "tool"})
-    result = _execute_tool(tool, params.get("params", {}) if isinstance(params.get("params", {}), dict) else {})
+    result = _execute_tool(
+        tool, params.get("params", {}) if isinstance(params.get("params", {}), dict) else {}
+    )
     return {"ok": True, "result": result, "meta": {"tool": tool}}
 
 

@@ -42,7 +42,11 @@ class Executor:
         trace.append(record)
 
     def execute_plan(
-        self, plan: Iterable[PlanStep], registry: ToolRegistry, context: ExecutionContext, trace: List[str] | None = None
+        self,
+        plan: Iterable[PlanStep],
+        registry: ToolRegistry,
+        context: ExecutionContext,
+        trace: List[str] | None = None,
     ) -> ExecutionResult:
         step_results: List[Dict[str, Any]] = []
         metadata = context.metadata or {}

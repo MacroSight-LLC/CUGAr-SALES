@@ -24,18 +24,21 @@ class FastAPI:
         def decorator(fn: Callable):
             self.routes[("GET", path)] = fn
             return fn
+
         return decorator
 
     def post(self, path: str):
         def decorator(fn: Callable):
             self.routes[("POST", path)] = fn
             return fn
+
         return decorator
 
     def middleware(self, _):
         def decorator(fn: Callable):
             self.middleware_fn = fn
             return fn
+
         return decorator
 
     async def _call(self, method: str, path: str, payload: Any, headers: Dict[str, str]):
@@ -43,8 +46,10 @@ class FastAPI:
         if not handler:
             raise HTTPException(status_code=404, detail="not found")
         if self.middleware_fn:
+
             async def call_next(request):
                 return await _invoke(handler, payload, headers)
+
             response = await self.middleware_fn(SimpleRequest(headers), call_next)
             return response
         return await _invoke(handler, payload, headers)

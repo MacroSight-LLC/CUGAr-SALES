@@ -7,7 +7,9 @@ from cuga.modular.rag import RagRetriever
 def main() -> None:
     parser = argparse.ArgumentParser(description="Query documents with the configured vector backend")
     parser.add_argument("--query", required=True)
-    parser.add_argument("--backend", default=None, help="Override backend (chroma|qdrant|weaviate|milvus|local)")
+    parser.add_argument(
+        "--backend", default=None, help="Override backend (chroma|qdrant|weaviate|milvus|local)"
+    )
     args = parser.parse_args()
 
     retriever = RagRetriever(backend=args.backend)

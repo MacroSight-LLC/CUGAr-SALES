@@ -51,4 +51,3 @@ class HybridLLMClient(LLMClient):
             return self._record(fallback_response, is_local=False)
         except Exception as exc:  # pragma: no cover
             raise RuntimeError("LLM fallback client also failed") from exc
-

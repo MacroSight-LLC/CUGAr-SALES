@@ -117,4 +117,3 @@ class LifecycleManager:
     async def stop_all(self) -> None:
         await asyncio.gather(*(runner.stop() for runner in list(self.runners.values())))
         self.runners.clear()
-

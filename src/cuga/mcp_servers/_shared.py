@@ -10,7 +10,9 @@ from typing import Any, Callable, Dict
 class RequestError(Exception):
     """Standardized error for MCP servers."""
 
-    def __init__(self, message: str, *, type_: str = "bad_request", details: Dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, message: str, *, type_: str = "bad_request", details: Dict[str, Any] | None = None
+    ) -> None:
         super().__init__(message)
         self.type = type_
         self.details = details or {}

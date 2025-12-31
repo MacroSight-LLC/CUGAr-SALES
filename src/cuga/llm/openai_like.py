@@ -85,4 +85,3 @@ class OpenAILikeClient(LLMClient):
             model=data.get("model", payload["model"]),
             raw=data,
         )
-

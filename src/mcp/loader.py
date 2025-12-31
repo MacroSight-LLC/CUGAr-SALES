@@ -75,7 +75,9 @@ def _load_tools(
                 MCPTool(
                     capability=entry.get("capability", server_name),
                     action=entry.get("action", entry.get("operation_id", "invoke")),
-                    operation_id=entry.get("operation_id", f"{server_name}:{entry.get('action','invoke')}").strip(),
+                    operation_id=entry.get(
+                        "operation_id", f"{server_name}:{entry.get('action', 'invoke')}"
+                    ).strip(),
                     method=method.upper(),
                     path=path,
                     server=server_name,
@@ -144,7 +146,12 @@ def register_tools(
         name = tool.display_name
 
         def _handler(
-            payload: Dict[str, Any], *, config: Dict[str, Any] | None = None, context: Any | None = None, _tool: MCPTool = tool, _name: str = name
+            payload: Dict[str, Any],
+            *,
+            config: Dict[str, Any] | None = None,
+            context: Any | None = None,
+            _tool: MCPTool = tool,
+            _name: str = name,
         ) -> Any:
             merged_payload: Dict[str, Any] = {}
             merged_payload.update(config or {})
