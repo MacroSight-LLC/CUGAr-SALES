@@ -11,7 +11,9 @@ class ToolBus:
     def __init__(self, lifecycle: LifecycleManager | None = None) -> None:
         self.lifecycle = lifecycle or LifecycleManager()
 
-    async def call(self, alias: str, method: str, params: dict | None = None, timeout_s: float | None = None) -> ToolResponse:
+    async def call(
+        self, alias: str, method: str, params: dict | None = None, timeout_s: float | None = None
+    ) -> ToolResponse:
         handle = MCPToolHandle(self.lifecycle, alias)
         return await handle.call(ToolRequest(method=method, params=params or {}, timeout_s=timeout_s))
 

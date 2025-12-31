@@ -4,6 +4,7 @@ Design: validation uses ``jsonschema`` errors as the single source of truth and
 emits structured audit logs with sanitized fields (no payload echoes) so callers
 can trace outcomes without leaking sensitive values.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -133,11 +134,7 @@ def _build_audit_extra(
 
     filtered_details: Dict[str, Any] = {}
     if combined_details:
-        filtered_details = {
-            k: v
-            for k, v in combined_details.items()
-            if k not in _AUDIT_RESERVED_EXTRA_KEYS
-        }
+        filtered_details = {k: v for k, v in combined_details.items() if k not in _AUDIT_RESERVED_EXTRA_KEYS}
 
     if filtered_details:
         extra.update(filtered_details)

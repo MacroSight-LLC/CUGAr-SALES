@@ -138,7 +138,7 @@ class Memory:
         # Use the pi field from AgentState
         if hasattr(state, 'pi') and state.pi:
             pi_dict = json.loads(state.pi)
-            state.user_id = str(f"{pi_dict["first_name"]}_{pi_dict["last_name"]}_{pi_dict["phone_number"]}")
+            state.user_id = str(f"{pi_dict['first_name']}_{pi_dict['last_name']}_{pi_dict['phone_number']}")
         else:
             state.user_id = "default_user"
         self.user_id = state.user_id

@@ -7,8 +7,8 @@ from typing import Any, Callable, Dict, Optional
 try:  # pragma: no cover - prefer real dependency when available
     from pydantic import BaseModel, Field, ValidationError
 except ImportError:  # REVIEW-FIX: keep lightweight fallback for tests
-    class ValidationError(Exception):
-        ...
+
+    class ValidationError(Exception): ...
 
     class FieldInfo:
         def __init__(self, default: Any = None, default_factory: Optional[Callable[[], Any]] = None):
@@ -41,4 +41,3 @@ except ImportError:  # REVIEW-FIX: keep lightweight fallback for tests
 
         def model_dump(self) -> Dict[str, Any]:  # pragma: no cover - convenience
             return {key: getattr(self, key) for key in getattr(self, "__annotations__", {})}
-

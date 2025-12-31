@@ -1,4 +1,5 @@
 """Tool registry with schema validation and extension-aware loading."""
+
 from __future__ import annotations
 
 import importlib

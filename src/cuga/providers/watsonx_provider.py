@@ -1,4 +1,5 @@
 """Watsonx provider with deterministic defaults and structured auditing."""
+
 from __future__ import annotations
 
 import importlib
@@ -15,6 +16,7 @@ if _pydantic_spec:
     BaseModel = pydantic.BaseModel
     ValidationError = pydantic.ValidationError
 else:  # pragma: no cover - soft dependency fallback
+
     class BaseModel:  # type: ignore
         @classmethod
         def model_validate(cls, value: Any) -> Any:
@@ -24,8 +26,8 @@ else:  # pragma: no cover - soft dependency fallback
         def model_json_schema(cls) -> Dict[str, Any]:
             return {"properties": {}, "required": []}
 
-    class ValidationError(Exception):
-        ...
+    class ValidationError(Exception): ...
+
 
 _watsonx_spec = importlib.util.find_spec("ibm_watsonx_ai")
 if _watsonx_spec:
@@ -103,7 +105,11 @@ class WatsonxProvider:
 
         if self.client is None and Model is None:
             token_usage = {"input_tokens": len(prompt)}
-            response: Dict[str, Any] = {"output_text": prompt, "usage": token_usage, "token_usage": token_usage}
+            response: Dict[str, Any] = {
+                "output_text": prompt,
+                "usage": token_usage,
+                "token_usage": token_usage,
+            }
         else:
             client = self._build_client()
             response = client.generate_text(prompt=prompt, seed=seed)

@@ -28,6 +28,7 @@ def get_expected_token() -> str:
 def get_expected_token_hash() -> bytes:
     return hashlib.sha256(get_expected_token().encode()).digest()
 
+
 app = FastAPI(title="Cuga Backend")
 
 
@@ -48,7 +49,9 @@ async def budget_guard(request, call_next):
         return JSONResponse(status_code=429, content={"detail": "budget exceeded"})
     response = await call_next(request)
     if not hasattr(response, "headers"):
-        response = JSONResponse(status_code=getattr(response, "status_code", 200), content=getattr(response, "content", response))
+        response = JSONResponse(
+            status_code=getattr(response, "status_code", 200), content=getattr(response, "content", response)
+        )
     response.headers["X-Budget-Ceiling"] = str(ceiling)
     return response
 
@@ -69,7 +72,9 @@ async def plan(payload: dict, x_trace_id: str | None = Header(default=None)):
 async def execute(payload: dict, x_trace_id: str | None = Header(default=None)):
     trace = x_trace_id or "api"
     steps = await planner.plan(payload.get("goal", ""), metadata={"trace_id": trace})
+
     async def iterator():
         async for item in coordinator.run(steps, trace_id=trace):
             yield (f"data: {item}\n\n").encode()
+
     return StreamingResponse(iterator(), media_type="text/event-stream")

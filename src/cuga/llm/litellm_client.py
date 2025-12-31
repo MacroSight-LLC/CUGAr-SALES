@@ -48,7 +48,16 @@ class LiteLLMClient(LLMClient):
             prompt_tokens=usage_data.get("prompt_tokens", 0),
             completion_tokens=usage_data.get("completion_tokens", 0),
         )
-        choice = response["choices"][0]["message"] if isinstance(response, dict) else response.choices[0].message
+        choice = (
+            response["choices"][0]["message"] if isinstance(response, dict) else response.choices[0].message
+        )
         content = choice.get("content") if isinstance(choice, dict) else getattr(choice, "content", "")
         raw = response if isinstance(response, dict) else response.model_dump()
-        return ChatResponse(content=content or "", usage=usage, model=response.get("model", payload_model) if isinstance(response, dict) else getattr(response, "model", payload_model), raw=raw)
+        return ChatResponse(
+            content=content or "",
+            usage=usage,
+            model=response.get("model", payload_model)
+            if isinstance(response, dict)
+            else getattr(response, "model", payload_model),
+            raw=raw,
+        )

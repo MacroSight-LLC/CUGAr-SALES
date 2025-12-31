@@ -105,7 +105,9 @@ class LangChainMCPTool(BaseTool):
     name: str
     description: str = "MCP tool"
 
-    def __init__(self, handle: MCPToolHandle, description: str = "MCP tool", worker: AsyncWorker | None = None):
+    def __init__(
+        self, handle: MCPToolHandle, description: str = "MCP tool", worker: AsyncWorker | None = None
+    ):
         super().__init__()
         self.handle = handle
         self.name = handle.alias

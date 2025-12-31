@@ -22,3 +22,17 @@ servers:
         description: "Retrieve CRM contacts"
         cost: 1.2
         latency: 1.5
+
+local_tools:
+  - id: python_code_interpreter
+    name: "Python Code Interpreter"
+    description: "Executes Python code in a secure, sandboxed environment."
+    sandbox: "code-secure"
+
+sandbox_policies:
+  - id: "code-secure"
+    type: "subprocess"
+    description: "A secure, subprocess-based Python sandbox with hard resource limits."
+    max_cpu_time: "5s"
+    max_memory: "128MB"
+    max_wall_clock_time: "30s"

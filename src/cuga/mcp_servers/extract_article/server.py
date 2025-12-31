@@ -58,11 +58,15 @@ class _SimpleHTMLExtractor(HTMLParser):
         )
 
 
-def _extract_with_newspaper(url: Optional[str], html: Optional[str], language: Optional[str], timeout_ms: Optional[int]) -> ArticleResult:
+def _extract_with_newspaper(
+    url: Optional[str], html: Optional[str], language: Optional[str], timeout_ms: Optional[int]
+) -> ArticleResult:
     try:
         from newspaper import Article  # type: ignore
     except Exception as exc:  # noqa: BLE001
-        raise RequestError("newspaper4k is not available", type_="missing_dependency", details={"error": str(exc)}) from exc
+        raise RequestError(
+            "newspaper4k is not available", type_="missing_dependency", details={"error": str(exc)}
+        ) from exc
 
     article = Article(url if url else "http://localhost", language=language)
     if timeout_ms:
@@ -76,7 +80,9 @@ def _extract_with_newspaper(url: Optional[str], html: Optional[str], language: O
         try:
             article.download()
         except Exception as exc:  # noqa: BLE001
-            raise RequestError("Failed to download article", type_="network", details={"error": str(exc)}) from exc
+            raise RequestError(
+                "Failed to download article", type_="network", details={"error": str(exc)}
+            ) from exc
     try:
         article.parse()
     except Exception as exc:  # noqa: BLE001

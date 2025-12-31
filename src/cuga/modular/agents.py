@@ -93,7 +93,9 @@ class WorkerAgent:
             event = {"event": "execute:step", "tool": tool.name, "index": idx, "trace_id": trace_id}
             trace.append(event)
             if self.observability:
-                self.observability.emit({"event": "tool", "name": tool.name, "profile": profile, "trace_id": trace_id})
+                self.observability.emit(
+                    {"event": "tool", "name": tool.name, "profile": profile, "trace_id": trace_id}
+                )
         self.memory.remember(str(output), metadata={"profile": profile, "trace_id": trace_id})
         return AgentResult(output=output, trace=trace)
 
@@ -107,12 +109,16 @@ class CoordinatorAgent:
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def dispatch(self, goal: str, trace_id: Optional[str] = None) -> AgentResult:
-        plan = self.planner.plan(goal, metadata={"profile": self.planner.config.profile, "trace_id": trace_id})
+        plan = self.planner.plan(
+            goal, metadata={"profile": self.planner.config.profile, "trace_id": trace_id}
+        )
         traces = list(plan.trace)
         if not self.workers:
             raise ValueError("No workers configured")
         worker = self._select_worker()
-        result = worker.execute(plan.steps, metadata={"profile": self.planner.config.profile, "trace_id": trace_id})
+        result = worker.execute(
+            plan.steps, metadata={"profile": self.planner.config.profile, "trace_id": trace_id}
+        )
         traces.extend(result.trace)
         return AgentResult(output=result.output, trace=traces)
 
@@ -128,6 +134,8 @@ class CoordinatorAgent:
 def build_default_registry() -> ToolRegistry:
     return ToolRegistry(
         [
-            ToolSpec(name="echo", description="Echo text", handler=lambda inputs, ctx: inputs.get("text", "")),
+            ToolSpec(
+                name="echo", description="Echo text", handler=lambda inputs, ctx: inputs.get("text", "")
+            ),
         ]
     )

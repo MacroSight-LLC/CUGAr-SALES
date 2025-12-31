@@ -13,7 +13,9 @@ def _load_snscrape():
     try:
         from snscrape.modules import twitter  # type: ignore
     except Exception as exc:  # noqa: BLE001
-        raise RequestError("snscrape is not available", type_="missing_dependency", details={"error": str(exc)}) from exc
+        raise RequestError(
+            "snscrape is not available", type_="missing_dependency", details={"error": str(exc)}
+        ) from exc
     return twitter
 
 
