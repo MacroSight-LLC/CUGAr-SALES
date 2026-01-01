@@ -7,6 +7,10 @@ from urllib.parse import quote
 from cuga.backend.activity_tracker.tracker import ActivityTracker
 from cuga.backend.utils.id_utils import mask_with_timestamp
 from cuga.backend.cuga_graph.state.agent_state import AgentState
+from cuga.backend.tools_env.code_sandbox.safe_exec import (
+    safe_execute_code,
+    ExecutionResult as SafeExecutionResult
+)
 
 
 import sys
@@ -196,99 +200,34 @@ class ExecutionResult:
         self.stderr = stderr
 
 
-async def run_local(code_content: str) -> ExecutionResult:
-    stdout_buffer = StringIO()
-    stderr_buffer = StringIO()
-    exit_code = 0
-
-    import asyncio
-    import concurrent.futures
-
-    # Create a namespace that allows dynamic imports
-    namespace = {
-        '__builtins__': __builtins__,
-        '__name__': '__main__',
-        '__file__': '<string>',
-        '__doc__': None,
-        '__package__': None,
-        '__import__': __import__,
-        'importlib': importlib,
-        'asyncio': asyncio,
-        'concurrent': concurrent,
-    }
-
-    # Add all currently loaded modules to the namespace
-    # This ensures that any modules already imported in the main program are available
-    namespace.update(sys.modules)
-
-    try:
-        with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
-            # Use compile to get better error reporting and validate syntax
-            try:
-                compiled_code = compile(code_content, '<string>', 'exec')
-            except SyntaxError as se:
-                # Provide detailed syntax error information
-                error_msg = "Syntax Error in generated code:\n"
-                error_msg += f"  Line {se.lineno}: {se.text.strip() if se.text else 'N/A'}\n"
-                error_msg += f"  {' ' * (se.offset - 1) if se.offset else ''}^\n"
-                error_msg += f"  {se.msg}\n"
-                raise SyntaxError(error_msg) from se
-
-            exec(compiled_code, namespace, namespace)
-
-            # Now get the wrapper function from namespace and await it
-            if '__cuga_async_wrapper__' in namespace and asyncio.iscoroutinefunction(
-                namespace['__cuga_async_wrapper__']
-            ):
-                await namespace['__cuga_async_wrapper__']()
-    except SystemExit as e:
-        exit_code = e.code if e.code is not None else 0
-        logger.warning("=" * 80)
-        logger.warning(f"SystemExit caught in code execution: exit_code={exit_code}")
-        logger.warning("=" * 80)
-        stderr_buffer.write(f"Generated Code called exit with code : {exit_code}")
-    except SyntaxError as e:
-        import traceback
-
-        exit_code = 1
-        error_details = traceback.format_exc()
-
-        logger.error("=" * 80)
-        logger.error("SYNTAX ERROR IN GENERATED CODE")
-        logger.error("=" * 80)
-        logger.error(f"Error Message: {str(e)}")
-        logger.error("=" * 80)
-        logger.error("Full Stack Trace:")
-        logger.error(error_details)
-        logger.error("=" * 80)
-
-        # Write detailed error with traceback to stderr
-        stderr_buffer.write(f"Error during execution: {type(e).__name__}(\"{str(e)}\")\n")
-        stderr_buffer.write("Traceback (most recent call last):\n")
-        stderr_buffer.write(error_details)
-    except Exception as e:
-        import traceback
-
-        exit_code = 1
-        error_details = traceback.format_exc()
-
-        logger.error("=" * 80)
-        logger.error("EXCEPTION DURING CODE EXECUTION")
-        logger.error("=" * 80)
-        logger.error(f"Exception Type: {type(e).__name__}")
-        logger.error(f"Exception Message: {str(e)}")
-        logger.error("=" * 80)
-        logger.error("Full Stack Trace:")
-        logger.error(error_details)
-        logger.error("=" * 80)
-
-        # Write detailed error with traceback to stderr
-        stderr_buffer.write(f"Error during execution: {type(e).__name__}(\"{str(e)}\")\n")
-        stderr_buffer.write("Traceback (most recent call last):\n")
-        stderr_buffer.write(error_details)
-
+async def run_local(code_content: str, trace_id: str = "no-trace") -> ExecutionResult:
+    """
+    Execute code locally with security guardrails.
+    
+    Uses SafeCodeExecutor per AGENTS.md § 4 - no direct exec() allowed.
+    
+    Args:
+        code_content: The Python code to execute
+        trace_id: Trace ID for observability
+        
+    Returns:
+        ExecutionResult with stdout, stderr, and exit code
+    """
+    logger.info(f"[{trace_id}] Executing code with SafeCodeExecutor")
+    
+    # Use SafeCodeExecutor instead of direct exec()
+    safe_result = await safe_execute_code(
+        code=code_content,
+        profile="local",
+        trace_id=trace_id,
+        timeout=30.0,
+    )
+    
+    # Convert SafeExecutionResult to legacy ExecutionResult format
     return ExecutionResult(
-        exit_code=exit_code, stdout=stdout_buffer.getvalue(), stderr=stderr_buffer.getvalue()
+        exit_code=safe_result.exit_code,
+        stdout=safe_result.stdout,
+        stderr=safe_result.stderr,
     )
 
 

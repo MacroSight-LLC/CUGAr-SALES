@@ -37,6 +37,7 @@ dependencies = [
     "pymilvus>=2.6.4",
     "tavily-python",
     "agent-lifecycle-toolkit",
+    "tenacity>=8.2.0",
 ]
 
 [project.optional-dependencies]

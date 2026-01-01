@@ -33,6 +33,7 @@ from cuga.modular.memory import VectorMemory
 from cuga.modular.tools import ToolRegistry, ToolSpec
 from cuga.orchestrator import ExecutionContext
 from cuga.agents.executor import Executor
+from cuga.backend.tools_env.code_sandbox.safe_eval import safe_eval_expression
 
 
 # ============================================================================
@@ -781,7 +782,7 @@ def test_registry():
         ToolSpec(
             name="calculate",
             description="Perform calculation",
-            handler=lambda inputs, ctx: str(eval(inputs.get("expression", "0")))
+            handler=lambda inputs, ctx: str(safe_eval_expression(inputs.get("expression", "0")))
         ),
         ToolSpec(
             name="store",

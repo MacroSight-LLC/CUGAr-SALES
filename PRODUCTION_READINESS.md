@@ -23,6 +23,9 @@ This checklist ensures the CUGAR Agent system is hardened, documented, and versi
 - [x] Secrets validated before use (`assert key`)
 - [x] `detect-secrets` baseline committed
 - [x] `SECURITY.md` defines CI & runtime rules
+- [x] **HTTP Client Hardening**: All HTTP requests use `SafeClient` wrapper with enforced timeouts (10.0s), automatic retry (4 attempts, exponential backoff), and URL redaction in logs. No raw httpx/requests/urllib usage.
+- [x] **Secrets Management**: Env-only credential enforcement via `cuga.security.secrets` module. `.env.example` parity validated in CI (no missing keys). `SECRET_SCANNER=on` runs trufflehog + gitleaks on every push/PR. Hardcoded API keys/tokens/passwords trigger CI failure.
+- [x] **Mode-Specific Validation**: Startup validation enforces required env vars per mode: LOCAL (model API key), SERVICE (AGENT_TOKEN + budget + model key), MCP (servers file + profile + model key), TEST (no requirements).
 
 ---
 

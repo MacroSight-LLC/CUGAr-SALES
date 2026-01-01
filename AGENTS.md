@@ -25,6 +25,8 @@
 ## Tool Contract
 - Tools live under `cuga.modular.tools.*` only; signature `(inputs: Dict[str, Any], context: Dict[str, Any]) -> Any` with explicit schemas.
 - No `eval`/`exec`, no network unless profile allows, and parameters must be declared with IO expectations.
+- **HTTP Client (Canonical)**: All HTTP requests MUST use `cuga.security.http_client.SafeClient` wrapper with enforced timeouts (10.0s read, 5.0s connect), automatic retry with exponential backoff (4 attempts max, 8s max wait), and redirect following. No raw httpx/requests/urllib usage outside SafeClient. URL redaction in logs (strip query params/credentials).
+- **Secrets Management (Canonical)**: All credentials MUST be env-only (no hardcoded secrets). CI enforces `.env.example` parity validation (no missing keys) and runs SECRET_SCANNER=on (trufflehog/gitleaks) on every push/PR. Secrets validated per execution mode (local/service/mcp/test) with helpful error messages. See `cuga.security.secrets` for enforcement.
 
 ## Memory & RAG
 - Deterministic/local embeddings by default; metadata must include `path` and `profile`; isolation per profile with no cross-profile leakage.
@@ -94,6 +96,9 @@
 - Dynamic imports MUST be restricted to `cuga.modular.tools.*`; reject relative/absolute paths outside this namespace and denylisted modules.
 - Tools MUST declare parameters/IO expectations; MUST NOT perform network I/O unless explicitly allowed by profile; honor budget ceilings and redaction rules for outputs/logs.
 - Forbidden: `eval`/`exec`, writing outside sandbox, spawning daemons, or swallowing errors silently; read-only mounts are the default.
+- **Eval/Exec Elimination (Canonical)**: Direct `eval()` and `exec()` calls are FORBIDDEN in all production code paths. Expression evaluation MUST use `cuga.backend.tools_env.code_sandbox.safe_eval.safe_eval_expression()` (AST-based, allowlist operators/functions). Code execution MUST use `cuga.backend.tools_env.code_sandbox.safe_exec.SafeCodeExecutor` or `safe_execute_code()` with enforced import allowlists (only `cuga.modular.tools.*`), restricted builtins (no eval/exec/open/compile/__import__), filesystem deny-by-default, timeout enforcement, and audit trail. All code execution is routed through these abstractions with trace propagation.
+- **HTTP Enforcement**: Network I/O MUST use `SafeClient` from `cuga.security.http_client` with enforced timeouts (10.0s read, 5.0s connect, 10.0s write, 10.0s total), automatic exponential backoff retry (4 attempts, 8s max wait), and URL redaction. Raw httpx/requests calls rejected.
+- **Secrets Enforcement**: Credentials MUST be loaded from environment variables only. Hardcoded API keys/tokens/passwords trigger CI failure. All secret values redacted in logs/errors per `cuga.security.secrets.redact_dict()`.
 
 ## 5. Audit / Trace Semantics
 - Logs MUST be structured (JSON-friendly) and omit PII; redact secrets before emission; include reason when budgets trigger warn/block decisions.

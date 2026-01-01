@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from typing import Optional
 import math
 
+from cuga.backend.tools_env.code_sandbox.safe_eval import safe_eval_expression
+
 
 class EvaluateExpressionRequest(BaseModel):
     """Request model for evaluating mathematical expressions"""
@@ -41,41 +43,23 @@ class FactorialResponse(BaseModel):
 
 
 def evaluate_expression(expression: str) -> EvaluateExpressionResponse:
-    """Evaluate a mathematical expression and return the result"""
+    """
+    Evaluate a mathematical expression and return the result.
+    
+    Uses safe AST-based evaluation instead of eval() per AGENTS.md guardrails.
+    """
     try:
-        # Use eval with restricted globals for safety
-        allowed_names = {k: v for k, v in math.__dict__.items() if not k.startswith("__")}
-        allowed_names.update(
-            {
-                "abs": abs,
-                "round": round,
-                "min": min,
-                "max": max,
-                "sum": sum,
-                "len": len,
-                "pow": pow,
-                "sqrt": math.sqrt,
-                "sin": math.sin,
-                "cos": math.cos,
-                "tan": math.tan,
-                "log": math.log,
-                "exp": math.exp,
-                "pi": math.pi,
-                "e": math.e,
-            }
-        )
-
-        # Evaluate the expression
-        result = eval(expression, {"__builtins__": {}}, allowed_names)
-
-        # Ensure result is a number
-        if not isinstance(result, (int, float)):
-            raise ValueError("Expression must evaluate to a number")
-
-        return EvaluateExpressionResponse(expression=expression, result=float(result), success=True)
-    except Exception as e:
+        # Use safe_eval_expression instead of eval() - no eval/exec allowed
+        result = safe_eval_expression(expression)
+        
+        return EvaluateExpressionResponse(expression=expression, result=result, success=True)
+    except (ValueError, SyntaxError, TypeError, RecursionError) as e:
         return EvaluateExpressionResponse(
             expression=expression, result=0.0, success=False, error_message=str(e)
+        )
+    except Exception as e:
+        return EvaluateExpressionResponse(
+            expression=expression, result=0.0, success=False, error_message=f"Unexpected error: {str(e)}"
         )
 
 

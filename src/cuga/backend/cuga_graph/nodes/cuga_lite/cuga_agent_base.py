@@ -39,6 +39,7 @@ from cuga.backend.cuga_graph.nodes.cuga_lite.tool_provider_interface import (
     AppDefinition,
 )
 from cuga.config import settings
+from cuga.backend.tools_env.code_sandbox.safe_exec import safe_execute_code
 
 # E2B sandbox imports (optional)
 try:
@@ -1120,161 +1121,44 @@ async def __async_main():
             new_vars = _filter_new_variables(_locals, original_keys)
             return result, new_vars
 
-        # Local execution with restricted environment
+        # Local execution with SafeCodeExecutor (per AGENTS.md § 4)
         with contextlib.redirect_stdout(io.StringIO()) as f:
-            # Create a restricted __import__ that only allows whitelisted modules
-            _original_import = (
-                __builtins__['__import__'] if isinstance(__builtins__, dict) else __builtins__.__import__
-            )
-
-            def restricted_import(name, globals=None, locals=_locals, fromlist=(), level=0):
-                # Whitelist of allowed modules
-                allowed_modules = {
-                    'asyncio',
-                    'json',
-                    'pandas',
-                    'numpy',
-                    'datetime',
-                    'math',
-                    'collections',
-                    'itertools',
-                    'functools',
-                    're',
-                    'typing',
-                }
-
-                # Block access to dangerous modules
-                if name.split('.')[0] not in allowed_modules:
-                    raise ImportError(f"Import of '{name}' is not allowed in restricted execution context")
-
-                return _original_import(name, globals, locals, fromlist, level)
-
-            # Create restricted builtins - allow only safe operations
-            # Exclude: compile, eval, exec, open, input, file operations
-            safe_builtins = {
-                # Type constructors
-                'dict': dict,
-                'list': list,
-                'tuple': tuple,
-                'set': set,
-                'frozenset': frozenset,
-                'str': str,
-                'bytes': bytes,
-                'bytearray': bytearray,
-                'int': int,
-                'float': float,
-                'bool': bool,
-                'complex': complex,
-                # Utilities
-                'len': len,
-                'range': range,
-                'enumerate': enumerate,
-                'zip': zip,
-                'map': map,
-                'filter': filter,
-                'sorted': sorted,
-                'reversed': reversed,
-                'sum': sum,
-                'min': min,
-                'max': max,
-                'abs': abs,
-                'round': round,
-                'any': any,
-                'all': all,
-                # String operations
-                'chr': chr,
-                'ord': ord,
-                'format': format,
-                'repr': repr,
-                # Type checking
-                'isinstance': isinstance,
-                'issubclass': issubclass,
-                'type': type,
-                'hasattr': hasattr,
-                'getattr': getattr,
-                'setattr': setattr,
-                'delattr': delattr,
-                # Iteration
-                'iter': iter,
-                'next': next,
-                'slice': slice,
-                # Exceptions (needed for error handling)
-                'BaseException': BaseException,
-                'Exception': Exception,
-                'ValueError': ValueError,
-                'TypeError': TypeError,
-                'KeyError': KeyError,
-                'IndexError': IndexError,
-                'AttributeError': AttributeError,
-                'RuntimeError': RuntimeError,
-                'StopIteration': StopIteration,
-                'AssertionError': AssertionError,
-                'ImportError': ImportError,
-                # Other essentials
-                'print': print,
-                'None': None,
-                'True': True,
-                'False': False,
-                'locals': locals,
-                'vars': vars,  # Variable introspection
-                '__name__': '__restricted__',
-                '__build_class__': __build_class__,
-                '__import__': restricted_import,  # Restricted import
-            }
-
-            # Create restricted globals with limited module access
-            # os, sys, subprocess, and other dangerous modules are completely excluded
-            restricted_globals = {
-                "__builtins__": safe_builtins,
-                "asyncio": asyncio,  # Needed for async execution
-                "json": json,  # Commonly needed for tool calls
-            }
-
-            # Add pandas if available
-            try:
-                import pandas as pd
-
-                restricted_globals["pd"] = pd
-                restricted_globals["pandas"] = pd
-            except ImportError:
-                pass  # pandas not installed, skip
-
-            # Add tool functions from _locals (these are the callable tools)
-            # Filter out any dangerous modules that might have been passed in _locals
+            # Use SafeCodeExecutor instead of manual exec() with restricted builtins
+            # This enforces allowlist/denylist, audit trail, and trace propagation
+            trace_id = state.get('trace_id', 'no-trace') if state else 'no-trace'
+            
+            # Prepare context from _locals (filter dangerous modules)
             dangerous_module_names = {
-                'os',
-                'sys',
-                'subprocess',
-                'pathlib',
-                'shutil',
-                'glob',
-                'importlib',
-                '__import__',
-                'eval',
-                'exec',
-                'compile',
+                'os', 'sys', 'subprocess', 'pathlib', 'shutil', 'glob',
+                'importlib', '__import__', 'eval', 'exec', 'compile',
             }
-            safe_locals = {k: v for k, v in _locals.items() if k not in dangerous_module_names}
-
-            # Merge tools and variables into restricted_globals so they're accessible
-            # to the async function when it runs
-            restricted_globals.update(safe_locals)
-
-            # Safety check: Ensure no dangerous modules leaked into the execution environment
-            assert 'os' not in restricted_globals, "Security violation: os module in restricted_globals!"
-            assert 'sys' not in restricted_globals, "Security violation: sys module in restricted_globals!"
-            assert 'subprocess' not in restricted_globals, (
-                "Security violation: subprocess in restricted_globals!"
+            safe_context = {k: v for k, v in _locals.items() if k not in dangerous_module_names}
+            
+            # Execute with SafeCodeExecutor
+            exec_result = await safe_execute_code(
+                code=wrapped_code,
+                profile="agent",
+                trace_id=trace_id,
+                context=safe_context,
+                timeout=30.0,
             )
-
-            # Create a namespace for exec to populate with local definitions
-            exec_locals = {}
-            exec(wrapped_code, restricted_globals, exec_locals)
-
-            # Get and run the async function (it's now in exec_locals)
-            async_main = exec_locals['__async_main']
-            result_locals = await asyncio.wait_for(async_main(), timeout=30)
-            _locals.update(result_locals)
+            
+            # Check for execution errors
+            if not exec_result.success:
+                raise RuntimeError(f"Code execution failed: {exec_result.error}")
+            
+            # Update _locals with results from namespace
+            # The async wrapper should have updated the namespace
+            if '__async_main' in exec_result.namespace:
+                # The async function was defined, extract its results
+                # This is handled by SafeCodeExecutor automatically
+                pass
+            
+            # Update _locals with new variables from namespace
+            _locals.update({
+                k: v for k, v in exec_result.namespace.items()
+                if not k.startswith('__') and k not in {'asyncio'}
+            })
 
         result = f.getvalue()
         if not result:

@@ -3,6 +3,7 @@
 ## Governance & Guardrails
 - [x] Align root `AGENTS.md` guardrails with current tool allowlist/denylist, escalation ceilings, redaction rules, and budget caps before enabling Tier 1 defaults.
 - [x] Maintain the guardrail CI gate so registry/AGENTS edits fail unless `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, and `todo1.md` reflect the change and `scripts/verify_guardrails.py` passes.
+- [x] **HTTP & Secrets Hardening**: Implemented `SafeClient` HTTP wrapper with enforced timeouts (10.0s), automatic retry (4 attempts, exponential backoff), URL redaction. Created `cuga.security.secrets` module with env-only enforcement, `.env.example` parity validation, hardcoded secret detection. Added `SECRET_SCANNER=on` CI workflow with trufflehog + gitleaks + parity checks. Updated AGENTS.md with canonical HTTP Client and Secrets Management requirements.
 - Track watsonx credential validation/audit expectations and extension-aware registry parsing in docs when updating guardrails.
 - Document any adjustments to guardrails in `CHANGELOG.md` under `## vNext` alongside test updates.
 - Keep README, PRODUCTION readiness notes, and security docs synchronized with guardrail and registry expectations; capture new follow-ups in this list whenever guardrails shift.

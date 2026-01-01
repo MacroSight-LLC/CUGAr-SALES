@@ -7,6 +7,102 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 
 ## vNext
 
+### Added: Eval/Exec Elimination & Safe Code Execution (2025-01-01)
+
+- **Safe Expression Evaluator** (`src/cuga/backend/tools_env/code_sandbox/safe_eval.py`, 300+ lines): Created AST-based expression evaluator replacing unsafe `eval()` calls per AGENTS.md § 4 Sandbox Expectations. `SafeExpressionEvaluator` class parses expressions into AST, validates against allowlisted operators (Add/Sub/Mul/Div/FloorDiv/Mod/Pow) and functions (math.sin/cos/tan/sqrt/log/exp, abs/round/min/max/sum), enforces recursion depth limit (max 50), rejects forbidden operations (assignments/imports/attribute access/eval/exec/__import__), handles division by zero safely. Convenience function `safe_eval_expression()` provides drop-in replacement for `eval()` with numeric-only results (returns float).
+- **Safe Code Executor** (`src/cuga/backend/tools_env/code_sandbox/safe_exec.py`, 430+ lines): Implemented secure code execution abstraction replacing direct `exec()` calls per AGENTS.md § 4. `SafeCodeExecutor` class enforces: import restrictions via `ImportGuard` (allowlist `cuga.modular.tools.*` only, denylist os/sys/subprocess/socket/pickle/etc, safe stdlib math/json/datetime/collections), restricted builtins (allow safe operations bool/int/float/str/list/dict/enumerate/range/zip/map/filter/sorted/sum/min/max/abs/round/isinstance/type/print, deny eval/exec/compile/__import__/open/input/file), filesystem deny-by-default (no file operations), timeout enforcement (30s default), async support (detects async def __async_main/__cuga_async_wrapper), output size limits (1MB default with truncation warnings), trace propagation for observability, audit logging (all imports/executions logged with trace_id). Returns `ExecutionResult` with exit_code/stdout/stderr/namespace/success/error. Convenience function `safe_execute_code()` provides async execution wrapper.
+- **Calculator Tool Migration**: Updated `src/system_tests/e2e/calculator_tool.py` to use `safe_eval_expression()` instead of `eval()` with restricted globals. Removed manual allowlist construction (60+ lines), now delegates to centralized safe evaluator with proper error categorization (ValueError/SyntaxError/TypeError/RecursionError).
+- **Test Suite Migration**: Updated `tests/scenario/test_agent_composition.py` calculate tool handler to use `safe_eval_expression()` instead of `eval()`. Added import `from cuga.backend.tools_env.code_sandbox.safe_eval import safe_eval_expression` to test fixtures.
+- **Sandbox Integration**: Refactored `src/cuga/backend/tools_env/code_sandbox/sandbox.py` `run_local()` function to use `SafeCodeExecutor` instead of direct `exec()` with manual namespace construction. Removed 90+ lines of manual builtin restriction, namespace setup, and error handling. Now delegates to `safe_execute_code()` with trace_id propagation and converts `SafeExecutionResult` to legacy `ExecutionResult` format.
+- **Agent Base Integration**: Refactored `src/cuga/backend/cuga_graph/nodes/cuga_lite/cuga_agent_base.py` local execution path to use `SafeCodeExecutor` instead of manual `exec()` with restricted globals. Removed 110+ lines of manual restricted_import function, safe_builtins dict, restricted_globals construction, and exec_locals handling. Now delegates to `safe_execute_code()` with trace_id from state, filters dangerous modules from context (os/sys/subprocess/pathlib/shutil/glob/importlib/__import__/eval/exec/compile), updates _locals from execution namespace.
+- **Comprehensive Test Coverage** (`tests/unit/test_safe_execution.py`, 350+ lines): Created three test suites with 30+ tests: `TestSafeExpressionEvaluator` validating arithmetic operations (add/sub/mul/div/mod/pow), math functions (sqrt/sin/cos/log/exp), constants (pi/e/tau), complex expressions, division by zero, undefined variables, forbidden operations (assignments/imports/attribute access), forbidden functions (eval/exec/__import__), recursion limits, syntax errors, non-numeric results. `TestImportGuard` validating denylist modules (os/sys/subprocess/socket/pickle/eval/exec), denylist submodules (os.path/subprocess.run), allowlist modules (cuga.modular.tools.*), safe modules (math/json/datetime/collections), unknown modules denied by default. `TestSafeCodeExecutor` validating simple/async execution, forbidden imports (os/subprocess/socket/pickle), safe imports (math), forbidden builtins (eval/exec/__import__), filesystem denied (open), timeout enforcement (124 exit code), context injection, malicious code rejection (os.system/subprocess.run/socket.socket/pickle.loads), output size limits (1KB with truncation), trace propagation, syntax error handling. `TestSecurityInvariants` meta-tests verifying no eval/exec in production code, import allowlist enforced, audit trail logged.
+- **Updated AGENTS.md Guardrails**: Added canonical **Eval/Exec Elimination** section to § 4 Sandbox Expectations: Direct `eval()` and `exec()` calls FORBIDDEN in all production code paths. Expression evaluation MUST use `safe_eval_expression()` (AST-based, allowlist operators/functions). Code execution MUST use `SafeCodeExecutor` or `safe_execute_code()` with enforced import allowlists (only `cuga.modular.tools.*`), restricted builtins (no eval/exec/open/compile/__import__), filesystem deny-by-default, timeout enforcement (30s), and audit trail. All code execution routed through these abstractions with trace propagation.
+
+**Key Features**:
+- **No Eval/Exec**: All `eval()` and `exec()` calls eliminated from production code paths (4 instances replaced)
+- **AST-Based Evaluation**: Expressions parsed into AST and validated against allowlists before execution
+- **Import Allowlist**: Only `cuga.modular.tools.*` can be imported; os/sys/subprocess/socket/pickle/etc denied
+- **Restricted Builtins**: Safe operations (math/type checks/iteration) allowed; eval/exec/compile/open/__import__ denied
+- **Filesystem Deny-Default**: No file operations (open/read/write) unless explicitly allowed
+- **Timeout Enforcement**: All code execution limited to 30s default (configurable)
+- **Audit Trail**: All imports and executions logged with trace_id for observability
+- **Trace Propagation**: trace_id flows from orchestrator → sandbox → audit logs
+
+**Security Guardrails Enforced**:
+- **Import Denylist**: os, sys, subprocess, shutil, pathlib, socket, urllib, requests, httpx, ftplib, smtplib, telnetlib, ssl, pickle, shelve, marshal, dill, importlib, imp, __import__, eval, exec, compile, open, file, input, raw_input, ctypes, cffi
+- **Import Allowlist**: cuga.modular.tools.* (explicit allow), math/random/datetime/time/json/uuid/collections/itertools/functools/operator/typing/dataclasses/re/string (safe stdlib)
+- **Builtin Allowlist**: bool/int/float/str/bytes/list/tuple/dict/set/frozenset (types), isinstance/issubclass/type (checks), enumerate/range/zip/map/filter/all/any/sum/sorted/reversed/len/iter/next (iteration), abs/round/min/max/pow/divmod (math), repr/ascii/ord/chr/format (string), getattr/setattr/hasattr/delattr (introspection), dir/vars/id/hash (limited object), Exception types, print/help (utilities)
+- **Builtin Denylist**: eval, exec, compile, __import__, open, input, raw_input, file, execfile, reload, vars, locals, globals, __builtins__
+- **Expression Allowlist**: Numeric constants, binary ops (Add/Sub/Mul/Div/FloorDiv/Mod/Pow), unary ops (UAdd/USub), comparisons (Eq/NotEq/Lt/LtE/Gt/GtE), function calls (allowlisted only), name lookups (constants only), lists/tuples (for aggregation)
+- **Expression Denylist**: Assignments, imports, attribute access, subscripts, lambda, comprehensions, class/function definitions, context managers, exception handlers
+
+**Breaking Changes**:
+- All `eval()` calls MUST be replaced with `safe_eval_expression()` (AST-based)
+- All `exec()` calls MUST be replaced with `SafeCodeExecutor` or `safe_execute_code()`
+- Direct `exec()` with manual namespace construction no longer supported
+- Code attempting forbidden imports (os/sys/subprocess/etc) will raise `ImportError`
+- Code attempting forbidden builtins (eval/exec/open/__import__) will raise `NameError`
+
+**Migration Path**:
+- Replace `eval(expression)` → `safe_eval_expression(expression)` from `cuga.backend.tools_env.code_sandbox.safe_eval`
+- Replace `exec(code, globals, locals)` → `await safe_execute_code(code, context=locals)` from `cuga.backend.tools_env.code_sandbox.safe_exec`
+- Replace manual namespace construction → pass as `context` dict to `safe_execute_code()`
+- Remove manual `__builtins__` filtering → handled by `SafeCodeExecutor`
+- Add `trace_id` parameter to execution calls for observability
+- Update imports to use canonical modules from `cuga.modular.tools.*` only
+
+**Files Modified**:
+- `src/cuga/backend/tools_env/code_sandbox/safe_eval.py` (new, 300+ lines)
+- `src/cuga/backend/tools_env/code_sandbox/safe_exec.py` (new, 430+ lines)
+- `src/system_tests/e2e/calculator_tool.py` (simplified, -50 lines)
+- `tests/scenario/test_agent_composition.py` (updated import, 1 line)
+- `src/cuga/backend/tools_env/code_sandbox/sandbox.py` (refactored, -90 lines)
+- `src/cuga/backend/cuga_graph/nodes/cuga_lite/cuga_agent_base.py` (refactored, -110 lines)
+- `tests/unit/test_safe_execution.py` (new, 350+ lines)
+- `AGENTS.md` (updated § 4 Sandbox Expectations with Eval/Exec Elimination guardrail)
+
+### Added: HTTP & Secrets Hardening (2025-01-01)
+
+- **SafeClient HTTP Wrapper** (`src/cuga/security/http_client.py`, 250+ lines): Created canonical HTTP client wrapper with enforced security defaults per AGENTS.md Tool Contract. All HTTP requests MUST use `SafeClient` with: enforced timeouts (10.0s read, 5.0s connect, 10.0s write, 10.0s total), automatic exponential backoff retry (4 attempts max, 8s max wait, 0.5s multiplier), redirect following enabled by default, URL redaction in logs (strips query params/credentials). Implements both sync (`SafeClient`) and async (`AsyncSafeClient`) variants with identical guarantees. Supports context manager protocol for automatic resource cleanup.
+- **Secrets Management Module** (`src/cuga/security/secrets.py`, 280+ lines): Implemented env-only credential enforcement with `.env.example` parity validation per AGENTS.md Secrets Enforcement. Core functions: `is_sensitive_key()` pattern matching (secret/token/password/api_key/auth/credential), `redact_dict()` for safe logging with recursive dict/list traversal, `validate_env_parity()` checking missing keys against template, `enforce_env_only_secrets()` validating required vars by execution mode (local/service/mcp/test), `detect_hardcoded_secrets()` basic static analysis detecting hardcoded API keys/tokens/passwords/bearer auth. Raises `RuntimeError` with helpful error messages listing missing vars and setup instructions per mode.
+- **Secret Scanning CI Workflow** (`.github/workflows/secret-scan.yml`): Added multi-tool secret scanning pipeline enforcing `SECRET_SCANNER=on` per user requirements. Implements four parallel jobs: (1) TruffleHog scan with full git history and verified-only secrets, (2) Gitleaks scan with SARIF output, (3) .env.example parity validation checking no missing keys in template vs actual environment, (4) Hardcoded secrets detection scanning Python files for API key/token/password assignments. All jobs fail CI on findings. Runs on push/PR to main/develop plus weekly scheduled scan. Summary job aggregates results.
+- **Comprehensive Test Coverage**: Created two test suites with 40+ tests: `tests/unit/security/test_http_client.py` validating timeout enforcement, retry logic (timeout/network errors), retry exhaustion after max attempts, URL redaction (query params/credentials), custom timeout override, all HTTP methods (GET/POST/PUT/PATCH/DELETE), async client behavior. `tests/unit/security/test_secrets.py` validating sensitive key patterns, dict redaction (nested dicts/lists), .env parity (valid/missing keys/ignore list), env-only secrets by mode (local/service/mcp/test), hardcoded secret detection (API keys/tokens/Bearer auth), startup validation with helpful error messages.
+- **Updated AGENTS.md Guardrails**: Added two canonical sections to Tool Contract and Sandbox Expectations: **HTTP Client (Canonical)** mandating `SafeClient` usage with no raw httpx/requests/urllib, enforcing timeouts (10.0s read/5.0s connect) and retry (4 attempts, 8s max wait), URL redaction in logs. **Secrets Management (Canonical)** requiring env-only credentials, `.env.example` parity validation in CI, `SECRET_SCANNER=on` with trufflehog/gitleaks on every push/PR, per-mode validation (local/service/mcp/test) with helpful errors. References `cuga.security.secrets` and `cuga.security.http_client` as canonical implementations.
+- **Dependency Addition**: Added `tenacity>=8.2.0` to `pyproject.toml` for retry policy implementation with exponential backoff.
+
+**Key Features**:
+- **Enforced Timeouts**: All HTTP requests default to 10.0s total, 5.0s connect, 10.0s read/write; no unbounded requests
+- **Automatic Retry**: Transient failures (timeout/network errors) retried with exponential backoff (max 8s wait between attempts)
+- **URL Redaction**: Query params and credentials stripped from logs per AGENTS.md "Never echo payloads, tokens, URLs, or secrets"
+- **Env-Only Secrets**: Runtime enforcement preventing hardcoded credentials; CI rejects hardcoded API keys/tokens
+- **Parity Validation**: CI fails if .env.example and actual environment have missing keys (prevents config drift)
+- **Mode-Specific Validation**: Local requires model API key, Service requires AGENT_TOKEN+budget+model key, MCP requires servers file+profile+model key, Test requires nothing
+
+**Environment Variables** (enforced per mode):
+- **LOCAL**: `OPENAI_API_KEY` or `WATSONX_API_KEY` or `ANTHROPIC_API_KEY` or `AZURE_OPENAI_API_KEY` or `GROQ_API_KEY` (at least one provider)
+- **SERVICE**: `AGENT_TOKEN` (authentication), `AGENT_BUDGET_CEILING` (budget enforcement), model API key
+- **MCP**: `MCP_SERVERS_FILE` (server definitions), `CUGA_PROFILE_SANDBOX` (sandbox isolation), model API key
+- **TEST**: No requirements (uses defaults/mocks)
+
+**CI Workflow Jobs**:
+- `trufflehog`: Scans full git history for verified secrets (high-confidence detections only)
+- `gitleaks`: Parallel secret scan with different detection patterns
+- `env-parity-check`: Validates `.env.example` has no missing keys vs environment
+- `hardcoded-secrets-check`: Static analysis scanning Python files for API key/token/password assignments
+- `secrets-summary`: Aggregates all scan results; fails if any job failed
+
+**Breaking Changes**:
+- All HTTP requests MUST use `SafeClient` wrapper (no raw httpx/requests/urllib calls)
+- All credentials MUST be loaded from environment (hardcoded secrets trigger CI failure)
+- CI now enforces `.env.example` parity and secret scanning on every push/PR
+
+**Migration Path**:
+- Replace `httpx.Client()` → `SafeClient()` from `cuga.security.http_client`
+- Replace `requests.get()` → `SafeClient().get()` with context manager
+- Replace hardcoded API keys → `os.getenv("PROVIDER_API_KEY")` with validation
+- Add missing keys to `.env.example` if parity check fails
+- Verify `SECRET_SCANNER=on` in CI environment
+
 ### Added: Deterministic Routing & Planning (2025-01-01)
 
 - **Planning Authority Module** (`src/cuga/orchestrator/planning.py`, 570+ lines): Created canonical planning interface with explicit Plan→Route→Execute state machine. Implements `PlanningAuthority` protocol with `create_plan()` and `validate_plan()` methods. Plans transition through lifecycle stages (CREATED → ROUTED → EXECUTING → COMPLETED/FAILED/CANCELLED) with idempotent transition guards preventing invalid state changes. Includes `ToolRankingPlanner` implementation using keyword overlap scoring for deterministic tool selection.

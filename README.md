@@ -131,6 +131,42 @@ See `AGENTS.md` for role details and `USAGE.md` for end-to-end flows.
 - Pytest with coverage is configured (see `TESTING.md`).
 - CI (GitHub Actions) runs lint, type-check, tests, and guardrail verification on pushes/PRs.
 
+## Security & Safe Execution
+
+CUGAR Agent enforces security-first design with deny-by-default policies per [AGENTS.md](AGENTS.md) § 4 Sandbox Expectations:
+
+### Eval/Exec Elimination
+- **No eval/exec**: All `eval()` and `exec()` calls eliminated from production code paths
+- **AST-based expression evaluation**: Use `safe_eval_expression()` from `cuga.backend.tools_env.code_sandbox.safe_eval` for mathematical expressions
+  - Allowlisted operators: Add/Sub/Mul/Div/FloorDiv/Mod/Pow
+  - Allowlisted functions: math.sin/cos/tan/sqrt/log/exp, abs/round/min/max/sum
+  - Denies: assignments, imports, attribute access, eval/exec/__import__
+- **SafeCodeExecutor**: All code execution routed through `SafeCodeExecutor` or `safe_execute_code()` from `cuga.backend.tools_env.code_sandbox.safe_exec`
+  - Import allowlist: Only `cuga.modular.tools.*` permitted
+  - Import denylist: os/sys/subprocess/socket/pickle/eval/exec/compile
+  - Restricted builtins: Safe operations (math/types/iteration) allowed; eval/exec/open/__import__ denied
+  - Filesystem deny-default: No file operations unless explicitly allowed
+  - Timeout enforcement: 30s default, configurable
+  - Audit trail: All imports/executions logged with trace_id
+
+### HTTP & Secrets Hardening
+- **SafeClient wrapper**: All HTTP requests MUST use `SafeClient` from `cuga.security.http_client`
+  - Enforced timeouts: 10.0s read, 5.0s connect, 10.0s write, 10.0s total
+  - Automatic retry: Exponential backoff (4 attempts max, 8s max wait)
+  - URL redaction: Query params and credentials stripped from logs
+- **Env-only secrets**: Credentials MUST be loaded from environment variables
+  - CI enforces `.env.example` parity validation (no missing keys)
+  - Secret scanning: trufflehog + gitleaks on every push/PR
+  - Hardcoded API keys/tokens trigger CI failure
+
+### Import & Sandbox Controls
+- **Import restrictions**: Dynamic imports limited to `cuga.modular.tools.*` namespace only
+- **Profile isolation**: Memory and tool access namespaced per profile; no cross-profile leakage
+- **Sandbox profiles**: All registry entries declare sandbox profile (py/node slim|full, orchestrator)
+- **Read-only defaults**: Mounts are read-only by default; `/workdir` pinning for exec scopes
+
+See [AGENTS.md](AGENTS.md) for complete guardrail specifications and [docs/security/](docs/security/) for detailed security controls.
+
 ## FAQ
 - **Which LLMs are supported?** 
   - OpenAI (GPT-4o, GPT-4 Turbo)
