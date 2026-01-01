@@ -5,11 +5,41 @@ Complete documentation for CUGAR agent observability system.
 ## Quick Start
 
 **Want to get started quickly?**
-1. Read [Quick Reference](QUICK_REFERENCE.md) - Common patterns and one-liners
-2. Follow [Integration Checklist](INTEGRATION_CHECKLIST.md) - Step-by-step integration
-3. Run example: `python examples/observability_example.py`
+1. Read [Architecture Overview](ARCHITECTURE.md) - Visual diagrams and system flow
+2. Read [Quick Reference](QUICK_REFERENCE.md) - Common patterns and one-liners
+3. Follow [Integration Checklist](INTEGRATION_CHECKLIST.md) - Step-by-step integration
+4. Run example: `python examples/observability_example.py`
+
+## Quick Links
+
+- **Architecture Overview**: [ARCHITECTURE.md](ARCHITECTURE.md) - Visual diagrams and system flow
+- **Event API**: [OBSERVABILITY_SLOS.md § Event Types](OBSERVABILITY_SLOS.md#event-types)
+- **Metrics API**: [OBSERVABILITY_SLOS.md § Golden Signals](OBSERVABILITY_SLOS.md#golden-signals)
+- **Integration**: [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md)
+- **Common Patterns**: [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+- **Grafana Setup**: [OBSERVABILITY_SLOS.md § Grafana Dashboard](OBSERVABILITY_SLOS.md#grafana-dashboard)
+- **OTEL Configuration**: [OBSERVABILITY_SLOS.md § OpenTelemetry Export](OBSERVABILITY_SLOS.md#opentelemetry-export)
 
 ## Core Documentation
+
+### 🏗️ [ARCHITECTURE.md](ARCHITECTURE.md)
+**Visual architecture guide with diagrams**
+
+ASCII diagrams for:
+- System overview (agent components → collector → exporters)
+- Event flow (planner → routing → tools → budget)
+- Golden signals data flow (events → counters/histograms → calculations)
+- Component interaction (application → observability → export layers)
+- Event types hierarchy (StructuredEvent → specialized events)
+- Golden signals computation (formulas with targets)
+- Grafana dashboard layout (12-panel visualization)
+- Trace propagation (trace_id continuity)
+- Configuration flow (env vars → YAML → runtime)
+- Deployment architecture (Docker Compose stack)
+- Security & PII redaction (event sanitization)
+- Thread safety (concurrent access patterns)
+
+**When to use**: Understanding system architecture, visualizing data flows, planning integration, designing deployments.
 
 ### 📘 [OBSERVABILITY_SLOS.md](OBSERVABILITY_SLOS.md)
 **Complete API reference and implementation guide**
@@ -135,19 +165,22 @@ tests/observability/test_observability.py   # Test suite (700+ lines)
 ## Reading Order
 
 ### For First-Time Users
-1. [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Get familiar with concepts
-2. [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md) - Follow integration steps
-3. Run `python examples/observability_example.py` - See it in action
-4. [OBSERVABILITY_SLOS.md](OBSERVABILITY_SLOS.md) - Deep dive when needed
+1. [ARCHITECTURE.md](ARCHITECTURE.md) - Visual overview with diagrams
+2. [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Get familiar with concepts
+3. [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md) - Follow integration steps
+4. Run `python examples/observability_example.py` - See it in action
+5. [OBSERVABILITY_SLOS.md](OBSERVABILITY_SLOS.md) - Deep dive when needed
 
 ### For Implementers
-1. [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Understand components
-2. [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md) - Follow integration guide
-3. [OBSERVABILITY_SLOS.md](OBSERVABILITY_SLOS.md) - Reference API details
-4. [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Quick lookup
+1. [ARCHITECTURE.md](ARCHITECTURE.md) - Understand system design
+2. [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Component inventory
+3. [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md) - Follow integration guide
+4. [OBSERVABILITY_SLOS.md](OBSERVABILITY_SLOS.md) - Reference API details
+5. [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Quick lookup
 
 ### For Operators
-1. [OBSERVABILITY_SLOS.md](OBSERVABILITY_SLOS.md) - Configuration section
+1. [ARCHITECTURE.md](ARCHITECTURE.md) - Deployment architecture
+2. [OBSERVABILITY_SLOS.md](OBSERVABILITY_SLOS.md) - Configuration section
 2. Grafana Dashboard - Import `observability/grafana_dashboard.json`
 3. [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Troubleshooting section
 4. Prometheus - Scrape `/metrics` endpoint
