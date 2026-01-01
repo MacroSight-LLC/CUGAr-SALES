@@ -1,3 +1,11 @@
+# Hydra-Composed Registry Fragment (Development)
+#
+# THIS IS NOT THE CANONICAL REGISTRY
+# The canonical, production-ready registry is located at: docs/mcp/registry.yaml
+#
+# This fragment is for Hydra composition during development.
+# See docs/mcp/registry.yaml for the complete tool registry used in production.
+
 defaults:
   - _self_
   - optional: server_fragments/local

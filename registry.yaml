@@ -1,3 +1,18 @@
+# Example/Development Registry
+# 
+# THIS IS NOT THE CANONICAL REGISTRY
+# The canonical, production-ready registry is located at: docs/mcp/registry.yaml
+#
+# This file serves as a minimal example for development and testing purposes.
+# For production deployments, compose/imports, and full tool definitions, see docs/mcp/registry.yaml
+
+version: v1
+defaults:
+  tier: 1
+  enabled: false  # Development examples disabled by default
+  protocol: mcp
+
+# Example servers for local development
 servers:
   mock_filesystem:
     url: http://localhost:8001
