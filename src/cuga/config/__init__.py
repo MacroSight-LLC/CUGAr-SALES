@@ -17,7 +17,12 @@ See docs/configuration/CONFIG_RESOLUTION.md for complete specification.
 """
 
 from .resolver import ConfigResolver, ConfigLayer, ConfigValue, ConfigSource
-from .validators import validate_environment_mode, EnvironmentMode, ValidationResult
+from .validators import (
+    validate_environment_mode,
+    EnvironmentMode,
+    ValidationResult,
+    ConfigValidator,
+)
 
 __all__ = [
     "ConfigResolver",
@@ -27,4 +32,5 @@ __all__ = [
     "validate_environment_mode",
     "EnvironmentMode",
     "ValidationResult",
+    "ConfigValidator",
 ]

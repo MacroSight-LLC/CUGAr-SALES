@@ -6,6 +6,7 @@ Welcome to Cugar Agent! This guide will get you up and running in minutes.
 
 - [Immediate Onboarding](#immediate-onboarding)
 - [5-Minute Setup](#5-minute-setup)
+- [Configuration Guide](#configuration-guide)
 - [Essential Commands](#essential-commands)
 - [Common Workflows](#common-workflows)
 - [Troubleshooting](#troubleshooting)
@@ -16,21 +17,29 @@ Welcome to Cugar Agent! This guide will get you up and running in minutes.
 
 ### What is Cugar Agent?
 
-Cugar Agent is a powerful tool designed to [describe your agent's purpose here]. It enables developers to [key functionality] and streamlines [main use cases].
+Cugar Agent is a security-first, offline-capable agentic orchestration framework with:
+- **Multi-agent orchestration**: Planner, Worker, and Coordinator agents with LangGraph integration
+- **MCP tool integration**: Model Context Protocol servers for extensible tool execution
+- **Unified configuration**: Single source of truth with explicit precedence and validation
+- **Memory & RAG**: Vector embeddings with Chroma/FAISS for context-aware responses
+- **Enterprise observability**: OpenTelemetry, LangFuse, and LangSmith integration
 
 ### Prerequisites
 
 Before you begin, ensure you have:
 
-- **Node.js** v16+ or **Python** 3.8+ (depending on your implementation)
+- **Python** 3.11+ (required for tomllib support)
 - **Git** installed
 - A terminal/command line interface
-- Basic understanding of [your platform/framework]
+- API keys for LLM providers (watsonx.ai, OpenAI, Anthropic, Azure, Groq, or Ollama)
 
 ### Key Resources
 
 - 📖 [Full Documentation](./docs)
-- 🐛 [Report Issues](https://github.com/TylrDn/cugar-agent/issues)
+- 🏗️ [Architecture Guide](./ARCHITECTURE.md)
+- � [Configuration Reference](./docs/configuration/CONFIG_RESOLUTION.md)
+- 🔐 [Security Controls](./docs/SECURITY_CONTROLS.md)
+- �🐛 [Report Issues](https://github.com/TylrDn/cugar-agent/issues)
 - 💬 [Discussions & Support](https://github.com/TylrDn/cugar-agent/discussions)
 - 📝 [Changelog](./CHANGELOG.md)
 
@@ -47,41 +56,124 @@ cd cugar-agent
 
 ### Step 2: Install Dependencies (2 min)
 
-**For Node.js projects:**
 ```bash
-npm install
-# or
-yarn install
-```
-
-**For Python projects:**
-```bash
+# Install Python dependencies
 pip install -r requirements.txt
-# or
+
+# Or install in development mode
 pip install -e .
+
+# Verify installation
+python -c "import cuga; print(f'✅ Cugar Agent {cuga.__version__} installed')"
 ```
 
 ### Step 3: Configuration (1 min)
 
 ```bash
-# Copy the example configuration
+# Copy the example environment file
 cp .env.example .env
 
-# Edit with your settings
-nano .env  # or use your preferred editor
+# Set your LLM provider API key (choose one)
+nano .env  # Add one of:
+# OPENAI_API_KEY=sk-...
+# ANTHROPIC_API_KEY=sk-ant-...
+# WATSONX_API_KEY=...
+# AZURE_OPENAI_API_KEY=...
+```
+
+**Minimum required configuration:**
+```bash
+# .env
+OPENAI_API_KEY=sk-your-api-key-here
+CUGA_PROFILE=demo_power
 ```
 
 ### Step 4: Verify Installation (1 min)
 
 ```bash
-# Check version
-cugar-agent --version
+# Run a simple query
+python -m cuga.main "List files in the current directory"
 
-# Run a test
-npm test  # or pytest
+# Or use the CLI
+cuga-agent query "What is the weather today?"
+
+# Check configuration
+cuga-agent config show
 ```
 
 ✅ **You're ready to go!**
+
+---
+
+## Configuration Guide
+
+### Configuration Structure
+
+Cugar Agent uses a unified configuration system with explicit precedence:
+
+```
+config/
+├── registry.yaml          # Tool registry (canonical)
+├── guards.yaml            # Routing guards
+└── defaults/
+    ├── models/*.yaml      # Model configurations
+    └── backend.yaml       # Backend settings
+
+configs/
+├── agent.demo.yaml        # Agent configurations
+├── memory.yaml            # Memory configurations
+└── observability.yaml     # Observability configurations
+
+.env                       # Environment overrides (highest precedence)
+```
+
+### Configuration Precedence
+
+Values are resolved in this order (highest to lowest):
+
+1. **CLI Arguments** (`--profile production`)
+2. **Environment Variables** (`PROFILE=production`)
+3. **.env Files** (`.env` > `.env.mcp` > `.env.example`)
+4. **YAML Configs** (`configs/*.yaml`, `config/registry.yaml`)
+5. **TOML Configs** (`settings.toml`, `eval_config.toml`)
+6. **Configuration Defaults** (`config/defaults/*.yaml`)
+7. **Hardcoded Defaults** (in source code)
+
+### Example: Using ConfigResolver
+
+```python
+from cuga.config import ConfigResolver, YAMLSource, EnvSource
+
+# Create resolver
+resolver = ConfigResolver()
+resolver.add_source(EnvSource(prefixes=["CUGA_", "AGENT_"]))
+resolver.add_source(YAMLSource("config/registry.yaml"))
+resolver.resolve()
+
+# Get value with provenance
+model = resolver.get("llm.model")
+print(model)  # ConfigValue(value="granite-4-h-small", layer=ENV, ...)
+
+# Validate all configuration
+errors = resolver.validate_all(fail_fast=True)  # Raises on first error
+```
+
+### Migrating Scattered Configs
+
+If you have existing configuration files, use the migration script:
+
+```bash
+# Preview changes (dry-run mode)
+python scripts/migrate_config.py --dry-run
+
+# Apply migration with backups
+python scripts/migrate_config.py
+
+# Restore from backup if needed
+cp -r backups/config_backup_YYYYMMDD_HHMMSS/* .
+```
+
+See [Configuration Resolution Guide](./docs/configuration/CONFIG_RESOLUTION.md) for complete documentation.
 
 ---
 
@@ -90,113 +182,202 @@ npm test  # or pytest
 ### Basic Operations
 
 ```bash
-# Initialize a new project
-cugar-agent init [project-name]
+# Run agent with a query
+cuga-agent query "Analyze this codebase"
 
-# Start the agent
-cugar-agent start
+# Start web UI (if installed)
+cuga-agent serve --port 8000
 
-# Stop the agent
-cugar-agent stop
+# Check system health
+cuga-agent health
 
-# Check status
-cugar-agent status
+# View current configuration
+cuga-agent config show
 
-# View help
-cugar-agent --help
+# Validate configuration
+cuga-agent config validate
 ```
 
 ### Development Commands
 
 ```bash
-# Run in development mode
-npm run dev  # or python -m cugar_agent.dev
-
-# Build for production
-npm run build  # or python setup.py build
+# Run in development mode with debug logging
+DEBUG=cuga:* python -m cuga.main "your query"
 
 # Run tests
-npm test  # or pytest
+pytest tests/ -v
+
+# Run tests with coverage
+pytest tests/ --cov=src/cuga --cov-report=html
 
 # Lint code
-npm run lint  # or flake8 .
+ruff check src/
 
 # Format code
-npm run format  # or black .
+ruff format src/
+
+# Type check
+mypy src/cuga/
 ```
 
 ### Configuration & Debugging
 
 ```bash
-# View current configuration
-cugar-agent config show
+# Show configuration with provenance
+python -c "
+from cuga.config import ConfigResolver, YAMLSource
+resolver = ConfigResolver()
+resolver.add_source(YAMLSource('config/registry.yaml'))
+resolver.resolve()
+print(resolver.dump())
+"
 
-# Update configuration
-cugar-agent config set [key] [value]
+# Validate tool registry
+python -c "
+from cuga.config import ConfigValidator
+import yaml
+with open('config/registry.yaml') as f:
+    ConfigValidator.validate_registry(yaml.safe_load(f))
+print('✅ Registry valid')
+"
 
-# Enable debug logging
-DEBUG=cugar-agent:* cugar-agent start
+# Enable trace logging
+export CUGA_LOG_LEVEL=DEBUG
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 
-# View logs
-cugar-agent logs --tail 50
+# View recent logs
+tail -f logs/cuga.log
 ```
 
 ---
 
 ## Common Workflows
 
-### Workflow 1: Setting Up Your First Agent
+### Workflow 1: Running Your First Query
 
 ```bash
-# 1. Initialize project
-cugar-agent init my-first-agent
+# 1. Ensure configuration is set
+cat .env | grep API_KEY
 
-# 2. Navigate to project
-cd my-first-agent
+# 2. Run a simple query
+python -m cuga.main "List all Python files in this directory"
 
-# 3. Review the generated config
-cat .env
+# 3. Check the response and trace logs
+cat logs/cuga.log | tail -20
 
-# 4. Start the agent
-cugar-agent start
-
-# 5. Test with a simple command
-curl http://localhost:3000/health
+# 4. Try a more complex query
+python -m cuga.main "Analyze the architecture of this project"
 ```
 
-### Workflow 2: Creating a Custom Integration
+### Workflow 2: Adding Custom Tools
 
 ```bash
-# 1. Create a new integration file
-touch src/integrations/my-service.js  # or .py
+# 1. Create a new tool module
+mkdir -p src/cuga/modular/tools/my_tools
+touch src/cuga/modular/tools/my_tools/__init__.py
+touch src/cuga/modular/tools/my_tools/custom_tool.py
 
-# 2. Implement your integration
-# See docs/INTEGRATIONS.md for the template
+# 2. Implement your tool (follow allowlist: cuga.modular.tools.*)
+cat > src/cuga/modular/tools/my_tools/custom_tool.py << 'EOF'
+def my_tool_handler(inputs: dict, context: dict) -> dict:
+    """Custom tool implementation."""
+    return {"result": "success", "data": inputs}
+EOF
 
-# 3. Register the integration
-# Update config/integrations.json
+# 3. Register in config/registry.yaml
+cat >> config/registry.yaml << 'EOF'
+tools:
+  my_custom_tool:
+    module: "cuga.modular.tools.my_tools.custom_tool"
+    handler: "my_tool_handler"
+    description: "My custom tool for doing X"
+    sandbox_profile: "py_slim"
+    mounts:
+      - "/workdir:/workdir:ro"
+EOF
 
-# 4. Test your integration
-npm test -- src/integrations/my-service.test.js
+# 4. Validate registry
+python scripts/migrate_config.py --dry-run
 
-# 5. Deploy
-npm run deploy
+# 5. Test your tool
+python -c "
+from cuga.modular.tools.my_tools.custom_tool import my_tool_handler
+result = my_tool_handler({'test': 'data'}, {'profile': 'demo'})
+print(result)
+"
 ```
 
-### Workflow 3: Debugging Issues
+### Workflow 3: Setting Up Memory & RAG
 
 ```bash
-# 1. Enable debug mode
-DEBUG=cugar-agent:* cugar-agent start
+# 1. Configure memory backend in configs/memory.yaml
+cat > configs/memory.yaml << 'EOF'
+backend: faiss
+embedding_model: all-MiniLM-L6-v2
+retention_days: 30
+persist_directory: ./memory/embeddings
+EOF
 
-# 2. Check logs
-cugar-agent logs --filter ERROR
+# 2. Initialize memory store
+python -c "
+from cuga.memory import VectorMemory
+memory = VectorMemory.from_config('configs/memory.yaml')
+memory.initialize()
+print('✅ Memory initialized')
+"
 
-# 3. Test connectivity
-cugar-agent health-check
+# 3. Add documents to memory
+python -c "
+from cuga.memory import VectorMemory
+memory = VectorMemory.from_config('configs/memory.yaml')
+memory.add_documents([
+    {'content': 'Key fact 1', 'metadata': {'source': 'docs'}},
+    {'content': 'Key fact 2', 'metadata': {'source': 'docs'}},
+])
+print('✅ Documents added')
+"
 
-# 4. Review configuration
-cugar-agent config show
+# 4. Query with memory context
+python -m cuga.main --memory-enabled "What are the key facts?"
+```
+
+### Workflow 4: Debugging Configuration Issues
+
+```bash
+# 1. Check configuration precedence
+python -c "
+from cuga.config import ConfigResolver, EnvSource, YAMLSource
+resolver = ConfigResolver()
+resolver.add_source(EnvSource())
+resolver.add_source(YAMLSource('configs/agent.demo.yaml'))
+resolver.resolve()
+
+# Show where each value came from
+for key in ['llm.model', 'llm.temperature', 'agent.timeout']:
+    print(resolver.get_provenance(key))
+"
+
+# 2. Validate all configuration
+python -c "
+from cuga.config import ConfigResolver, YAMLSource
+resolver = ConfigResolver()
+resolver.add_source(YAMLSource('config/registry.yaml'))
+resolver.resolve()
+
+errors = resolver.validate_all(fail_fast=False)
+if errors:
+    for section, error_list in errors.items():
+        print(f'❌ {section}: {error_list}')
+else:
+    print('✅ All configuration valid')
+"
+
+# 3. Check for common issues
+python scripts/verify_guardrails.py --base main
+
+# 4. Review audit logs
+grep "CONFIG" logs/cuga.log | tail -50
+```
 
 # 5. Check logs for specific module
 DEBUG=cugar-agent:database cugar-agent start

@@ -7,6 +7,62 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 
 ## vNext
 
+### Added: Deterministic Routing & Planning (2025-01-01)
+
+- **Planning Authority Module** (`src/cuga/orchestrator/planning.py`, 570+ lines): Created canonical planning interface with explicit Plan→Route→Execute state machine. Implements `PlanningAuthority` protocol with `create_plan()` and `validate_plan()` methods. Plans transition through lifecycle stages (CREATED → ROUTED → EXECUTING → COMPLETED/FAILED/CANCELLED) with idempotent transition guards preventing invalid state changes. Includes `ToolRankingPlanner` implementation using keyword overlap scoring for deterministic tool selection.
+- **Tool Budget Enforcement** (`ToolBudget` dataclass): Immutable budget tracking with cost_ceiling/cost_spent, call_ceiling/call_spent, token_ceiling/token_spent fields. Budget checked during planning phase with `BudgetError` raised if insufficient. Plans include `estimated_total_cost()`, `estimated_total_tokens()`, and `budget_sufficient()` methods. Budget updates via immutable `with_cost()`, `with_call()`, `with_tokens()` methods preserving thread-safety.
+- **Audit Trail Persistence** (`src/cuga/orchestrator/audit.py`, 520+ lines): Created persistent audit logging for all routing/planning decisions. Implements `DecisionRecord` dataclass capturing timestamp, trace_id, decision_type (routing/planning), stage, target, reason, alternatives, confidence, and metadata. Supports JSON and SQLite backends via `AuditBackend` protocol. `AuditTrail` provides high-level API with `record_routing_decision()`, `record_plan()`, `record_plan_step()` and query methods (`get_trace_history()`, `get_routing_history()`, `get_planning_history()`). All decisions include explicit reasoning for "tool chosen and why" observability.
+- **State Machine Transitions**: Plan transitions validated with transition guard checking valid next states. Timestamps automatically updated: `routed_at` (ROUTED stage), `started_at` (EXECUTING stage), `completed_at` (terminal stages). Invalid transitions (e.g., CREATED→EXECUTING) raise `ValueError` with helpful message listing valid transitions. Terminal stages (COMPLETED/FAILED/CANCELLED) cannot transition further.
+- **Integration with RoutingAuthority**: Planning and routing work together in coordinated workflow - PlanningAuthority decides "what to do and in what order", RoutingAuthority decides "who should do it". Plans created with `PlanStep` objects containing tool/input/estimated_cost/estimated_tokens; after routing, steps updated with assigned worker. Both planning and routing decisions recorded to same `AuditTrail` for complete trace history.
+- **Comprehensive Test Suite** (`tests/orchestrator/test_planning.py`, 500+ lines): Added 30+ tests validating: budget tracking (cost/call/token increments, limits enforcement), plan state transitions (valid/invalid transitions, idempotency), planning determinism (same inputs→same plan), budget enforcement in planning, audit trail persistence (JSON/SQLite backends, trace queries), integrated workflow (plan→route→execute with audit).
+- **Documentation** (`docs/orchestrator/PLANNING_AUTHORITY.md`): Created comprehensive planning authority guide with architecture diagrams, state machine visualization, budget enforcement examples, integration patterns with routing authority, audit trail usage, testing requirements, migration guide from legacy planner.
+- **Updated AGENTS.md Guardrails**: Added Planning Authority and Audit Trail as canonical requirements. All orchestrators MUST delegate planning to `PlanningAuthority` (no implicit planning), record decisions to `AuditTrail` (no decision without audit record), enforce `ToolBudget` before execution. Updated orchestrator delegation list to include PlanningAuthority, AuditTrail alongside existing RoutingAuthority, RetryPolicy.
+
+**API Exports** (added to `src/cuga/orchestrator/__init__.py`):
+- Planning: `PlanningAuthority`, `ToolRankingPlanner`, `create_planning_authority`, `Plan`, `PlanStep`, `PlanningStage`, `ToolBudget`, `BudgetError`
+- Audit: `DecisionRecord`, `AuditTrail`, `create_audit_trail`, `AuditBackend`, `JSONAuditBackend`, `SQLiteAuditBackend`
+
+**Key Features**:
+- **Determinism**: Same goal + same tools + same budget → identical plan with ordered steps
+- **Idempotency**: State transitions validated; repeated calls to `transition_to()` with same stage safe (immutable plan updates)
+- **Budget Enforcement**: Plans validate budget sufficiency before execution; `BudgetError` raised if insufficient cost/calls/tokens
+- **Audit Trail**: Every routing decision, plan creation, and plan step selection recorded with timestamp, trace_id, reasoning, alternatives considered
+- **Query Interface**: Audit trail queryable by trace_id (full execution history), decision_type (routing vs planning), or recent decisions (time-ordered)
+
+**Environment Configuration**:
+- `CUGA_AUDIT_PATH`: Audit storage path (default: `audit/decisions.db` for SQLite, `audit/decisions.jsonl` for JSON)
+- `AGENT_BUDGET_CEILING`: Default cost ceiling (default: 100)
+- `AGENT_BUDGET_POLICY`: Budget enforcement policy - "warn" or "block" (default: "warn")
+- `PLANNER_MAX_STEPS`: Maximum steps per plan (clamped 1-50, default: 10)
+
+**Breaking Changes**:
+- Orchestrators now MUST delegate to `PlanningAuthority` instead of inline planning logic
+- All planning decisions MUST be recorded to `AuditTrail` (no silent planning)
+- Plans MUST include explicit `ToolBudget` (no implicit budget tracking)
+
+**Migration Path**:
+- Legacy `PlannerAgent.plan(goal, metadata)` → `PlanningAuthority.create_plan(goal, trace_id, profile, budget, constraints)`
+- Legacy inline routing in nodes → Delegate to `RoutingAuthority.route_to_worker()` + record to `AuditTrail`
+- Legacy budget tracking in middleware → Use `ToolBudget` with plan validation
+
+### Phase 5: Configuration Single Source of Truth (In Progress)
+
+- **Created Pydantic Schema Infrastructure**: Implemented comprehensive validation schemas in `src/cuga/config/schemas/` for fail-fast configuration validation. Created four schema modules with field validators enforcing security guardrails and correctness constraints.
+- **ToolRegistry Schema** (`registry_schema.py`, 126 lines): Validates tool registry entries with: module allowlist enforcement (must start with `cuga.modular.tools.*`), mount syntax validation (`source:dest:mode` format with `ro`/`rw` modes), budget bounds (max_tokens ≤ 100000, max_calls_per_session ≤ 10000), unique module/tool name constraints, description quality checks (min 10 chars, no placeholder text), sandbox profile validation (py_slim/py_full/node_slim/node_full/orchestrator).
+- **GuardsConfig Schema** (`guards_schema.py`, 118 lines): Validates routing guards with: field path syntax (dot notation for nested fields), operator validation (eq/ne/in/not_in/gt/lt/gte/lte/contains/regex), value type matching (e.g., `in` operator requires list value), priority bounds (0-100) with conflict warnings, action validation (`route_to` requires `target` field), unique guard names (snake_case identifiers).
+- **AgentConfig Schema** (`agent_schema.py`, 97 lines): Validates agent configurations with: provider validation (watsonx/openai/anthropic/azure/groq/ollama), temperature bounds (0.0-2.0) with non-deterministic warnings, max_tokens bounds (1-128000), timeout reasonableness (1-3600s), hardcoded API key warnings (prefer env vars), deterministic defaults (temperature=0.0 for watsonx).
+- **Migration Script** (`scripts/migrate_config.py`, 384 lines): Automated migration tool consolidating scattered configuration files. Merges root `registry.yaml` + `docs/mcp/registry.yaml` → `config/registry.yaml` (MCP version takes precedence on conflicts). Converts `configurations/models/*.toml` → `config/defaults/models/*.yaml`. Moves `routing/guards.yaml` → `config/guards.yaml`. Creates timestamped backups. Supports `--dry-run` mode.
+- **Documentation Updates**: Added comprehensive Schema Validation section and Migration Guide to `docs/configuration/CONFIG_RESOLUTION.md`.
+
+**Files Created**:
+- `src/cuga/config/schemas/*.py` (3 schema files, 341 total lines)
+- `scripts/migrate_config.py` (384 lines)
+
+**Files Modified**:
+- `src/cuga/config/validators.py`: Added ConfigValidator class
+- `docs/configuration/CONFIG_RESOLUTION.md`: Added schema docs + migration guide
+
+
 ### Phase 4: UI/Backend Alignment & Integration Testing
 
 - **Created Comprehensive Integration Tests**: Implemented `tests/integration/test_ui_backend_alignment.py` (540+ lines, 56 tests) validating complete frontend-to-backend flow with FastAPI TestClient. Test coverage: model catalog API structure (6 tests verifying watsonx/openai/anthropic/azure/groq models returned with correct id/name/description/max_tokens/default fields), provider switching behavior (3 tests verifying dynamic model updates when switching watsonx→openai→anthropic), configuration persistence (7 tests for save/load roundtrips with all Granite 4.0 variants), error handling (3 tests for 404/422/auth errors), Granite 4.0 specific functionality (4 tests verifying all three variants present with correct metadata), frontend/backend contract validation (4 tests ensuring ModelConfig.tsx interface matches API responses).

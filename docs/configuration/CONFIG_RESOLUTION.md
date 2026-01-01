@@ -96,6 +96,161 @@ Single ConfigResolver with:
    - Features: Simple key-value lookup
    - Scope: Quick config reads (PROFILE, CUGA_HOST, feature flags)
 
+## Schema Validation
+
+### Pydantic Schemas
+
+All configuration files are validated using Pydantic schemas for fail-fast error detection:
+
+#### ToolRegistry Schema (`src/cuga/config/schemas/registry_schema.py`)
+
+```python
+from pydantic import BaseModel, field_validator
+
+class ToolRegistryEntry(BaseModel):
+    module: str  # Must start with "cuga.modular.tools."
+    handler: str
+    description: str  # Min 10 chars
+    sandbox_profile: SandboxProfile  # py_slim, py_full, node_slim, node_full, orchestrator
+    mounts: List[str] = []  # Format: "source:dest:mode" (mode: ro/rw)
+    budget: Optional[ToolBudget] = None
+
+class ToolRegistry(BaseModel):
+    tools: Dict[str, ToolRegistryEntry]
+    
+    @field_validator('tools')
+    def no_duplicate_modules(cls, tools):
+        # Enforce unique module paths
+        ...
+```
+
+**Validations:**
+- Module allowlist: `module` must start with `cuga.modular.tools.*`
+- Mount syntax: `source:dest:mode` with valid mode (`ro`/`rw`)
+- Budget bounds: `max_tokens <= 100000`, `max_calls_per_session <= 10000`
+- Unique constraints: No duplicate modules or tool names
+- Description quality: Min 10 chars, no placeholder text
+
+#### GuardsConfig Schema (`src/cuga/config/schemas/guards_schema.py`)
+
+```python
+class GuardCondition(BaseModel):
+    field: str  # Dot notation: "request.user.role"
+    operator: str  # eq, ne, in, not_in, gt, lt, gte, lte, contains, regex
+    value: Any
+
+class RoutingGuard(BaseModel):
+    name: str  # Snake_case identifier
+    priority: int = 50  # 0-100
+    conditions: List[GuardCondition]
+    actions: List[GuardAction]
+```
+
+**Validations:**
+- Field path syntax: Valid dot notation for nested fields
+- Operator validation: Only allowed operators (eq/ne/in/not_in/gt/lt/gte/lte/contains/regex)
+- Value type matching: Value type must match operator (e.g., `in` requires list)
+- Priority conflicts: Warn on same-priority guards with overlapping conditions
+- Action validation: `route_to` requires `target` field
+
+#### AgentConfig Schema (`src/cuga/config/schemas/agent_schema.py`)
+
+```python
+class AgentLLMConfig(BaseModel):
+    provider: str  # watsonx, openai, anthropic, azure, groq, ollama
+    model: str
+    temperature: float = 0.7  # 0.0-2.0
+    max_tokens: int = 4096  # 1-128000
+    api_key: Optional[str] = None  # Warns if hardcoded
+    
+class AgentConfig(BaseModel):
+    agent_type: str  # planner, worker, coordinator
+    max_retries: int = 3  # 0-10
+    timeout: float = 300.0  # 1-3600s
+    llm: AgentLLMConfig
+```
+
+**Validations:**
+- Provider validation: Only allowed providers
+- Temperature bounds: 0.0-2.0 with warnings for non-deterministic values
+- Timeout reasonableness: 1-3600 seconds
+- API key warnings: Warns if `api_key` hardcoded (prefer env vars)
+- Deterministic defaults: `temperature=0.0` for watsonx
+
+#### MemoryConfig & ObservabilityConfig
+
+```python
+class MemoryConfig(BaseModel):
+    backend: str  # local, faiss, chroma, qdrant
+    retention_days: Optional[int] = None  # 1-3650
+    
+class ObservabilityConfig(BaseModel):
+    emitter_type: str  # base, langfuse, openinference, otel
+    trace_sampling_rate: float = 1.0  # 0.0-1.0
+    redact_secrets: bool = True
+```
+
+### ConfigValidator Usage
+
+```python
+from cuga.config import ConfigValidator
+
+# Validate registry
+with open("config/registry.yaml") as f:
+    registry_data = yaml.safe_load(f)
+ConfigValidator.validate_registry(registry_data)  # Raises ValueError on failure
+
+# Validate guards
+with open("config/guards.yaml") as f:
+    guards_data = yaml.safe_load(f)
+ConfigValidator.validate_guards(guards_data)
+
+# Validate agent config
+with open("configs/agent.demo.yaml") as f:
+    agent_config = yaml.safe_load(f)
+ConfigValidator.validate_agent_config(agent_config)
+```
+
+### Fail-Fast Behavior
+
+**Invalid Configuration:**
+```yaml
+# config/registry.yaml - INVALID
+tools:
+  malicious_tool:
+    module: "evil.tools.backdoor"  # ❌ Not in allowlist
+    handler: "run"
+    sandbox_profile: "py_slim"
+    mounts:
+      - "/tmp:invalid"  # ❌ Invalid mount syntax (missing mode)
+```
+
+**Error Message:**
+```
+❌ Registry validation failed
+Validation error for ToolRegistry:
+tools -> malicious_tool -> module
+  Value error, Module must start with 'cuga.modular.tools.' (allowlist enforcement) [type=value_error]
+tools -> malicious_tool -> mounts -> 0
+  Value error, Mount must follow 'source:dest:mode' format (got '/tmp:invalid') [type=value_error]
+```
+
+**Valid Configuration:**
+```yaml
+# config/registry.yaml - VALID
+tools:
+  file_search:
+    module: "cuga.modular.tools.file_search"  # ✅ In allowlist
+    handler: "search_files"
+    description: "Search for files matching patterns"  # ✅ Min 10 chars
+    sandbox_profile: "py_slim"
+    mounts:
+      - "/workdir:/workdir:ro"  # ✅ Valid mount syntax
+    budget:
+      max_tokens: 50000  # ✅ Within bounds
+      max_calls_per_session: 100
+```
+
 ## Precedence Rules
 
 ### Precedence Layers (Highest → Lowest)
@@ -1155,3 +1310,95 @@ All changes MUST maintain backward compatibility for existing config keys unless
 - `src/cuga/config.py` - Dynaconf configuration
 - `src/cuga/modular/config.py` - AgentConfig from env
 - `src/cuga/mcp_v2/registry/loader.py` - Hydra registry loader
+
+## Migration Guide
+
+### Before: Scattered Configuration Files
+
+```
+project_root/
+├── registry.yaml                      # Root tool registry
+├── docs/mcp/registry.yaml             # MCP tool registry (duplicate)
+├── routing/guards.yaml                # Routing guards
+├── configurations/models/*.toml       # TOML model configs
+└── src/cuga/settings.toml             # Backend settings
+```
+
+### After: Unified Configuration Structure
+
+```
+project_root/
+├── config/
+│   ├── registry.yaml                  # Merged tool registry (canonical)
+│   ├── guards.yaml                    # Routing guards (moved from routing/)
+│   └── defaults/
+│       ├── models/*.yaml              # Converted from TOML
+│       └── backend.yaml               # Converted from settings.toml
+├── configs/
+│   ├── agent.demo.yaml                # Agent configurations
+│   ├── memory.yaml                    # Memory configurations
+│   └── observability.yaml             # Observability configurations
+└── backups/
+    └── config_backup_YYYYMMDD_HHMMSS/ # Timestamped backups
+```
+
+### Running the Migration
+
+**Step 1: Dry Run (Preview Changes)**
+
+```bash
+# See what would be changed without modifying files
+python scripts/migrate_config.py --dry-run
+```
+
+**Step 2: Run Migration with Backups**
+
+```bash
+# Apply changes (creates backups automatically)
+python scripts/migrate_config.py
+```
+
+**Step 3: Update Code References**
+
+Replace scattered config loading with unified ConfigResolver:
+
+```python
+# Before: Direct YAML loading
+with open("registry.yaml") as f:
+    registry = yaml.safe_load(f)
+
+# After: ConfigResolver with validation
+from cuga.config import ConfigResolver, ConfigValidator
+
+resolver = ConfigResolver(sources=["config/registry.yaml"])
+registry_data = resolver.get("tools")
+ConfigValidator.validate_registry({"tools": registry_data})
+```
+
+**Step 4: Test and Verify**
+
+```bash
+# Run configuration tests
+pytest tests/unit/config/ -v
+
+# Verify startup with new config
+python src/cuga/main.py --profile demo_power
+```
+
+**Step 5: Cleanup Deprecated Files**
+
+```bash
+# After confirming everything works
+rm registry.yaml docs/mcp/registry.yaml routing/guards.yaml
+rm configurations/models/*.toml
+```
+
+### Rollback Procedure
+
+If migration causes issues:
+
+```bash
+# Restore from timestamped backup
+cp -r backups/config_backup_YYYYMMDD_HHMMSS/* .
+rm -rf config/  # Clean up migrated files
+```

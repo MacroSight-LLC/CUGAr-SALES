@@ -65,6 +65,34 @@ from .failures import (
     create_retry_policy,
 )
 
+from .planning import (
+    # Planning Authority
+    PlanningAuthority,
+    ToolRankingPlanner,
+    create_planning_authority,
+    
+    # Plan and Steps
+    Plan,
+    PlanStep,
+    PlanningStage,
+    
+    # Budget
+    ToolBudget,
+    BudgetError,
+)
+
+from .audit import (
+    # Audit Records
+    DecisionRecord,
+    AuditTrail,
+    create_audit_trail,
+    
+    # Backends
+    AuditBackend,
+    JSONAuditBackend,
+    SQLiteAuditBackend,
+)
+
 __all__ = [
     # Protocol
     "OrchestratorProtocol",
@@ -104,5 +132,23 @@ __all__ = [
     "NoRetryPolicy",
     "RetryExecutor",
     "create_retry_policy",
+    
+    # Planning Authority (Canonical)
+    "PlanningAuthority",
+    "ToolRankingPlanner",
+    "create_planning_authority",
+    "Plan",
+    "PlanStep",
+    "PlanningStage",
+    "ToolBudget",
+    "BudgetError",
+    
+    # Audit Trail (Canonical)
+    "DecisionRecord",
+    "AuditTrail",
+    "create_audit_trail",
+    "AuditBackend",
+    "JSONAuditBackend",
+    "SQLiteAuditBackend",
 ]
 

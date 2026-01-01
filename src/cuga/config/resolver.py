@@ -545,3 +545,128 @@ class ConfigResolver:
         """Clear cached resolved config (call after adding sources)."""
         self._cache = {}
         self._resolved = {}
+
+    def validate_all(self, fail_fast: bool = True) -> Dict[str, List[str]]:
+        """
+        Validate all resolved configuration using ConfigValidator.
+        
+        Validates:
+            - Tool registry (config.tools or registry.tools)
+            - Routing guards (config.guards or guards)
+            - Agent configuration (config.agent or agent)
+            - Memory configuration (config.memory or memory)
+            - Observability configuration (config.observability or observability)
+        
+        Args:
+            fail_fast: If True, raise ValueError on first validation error.
+                      If False, collect all errors and return them.
+        
+        Returns:
+            Dict mapping config sections to lists of error messages.
+            Empty dict if all validations pass.
+        
+        Raises:
+            ValueError: If fail_fast=True and any validation fails.
+        
+        Example:
+            resolver = ConfigResolver()
+            resolver.add_source(YAMLSource("config/registry.yaml"))
+            resolver.resolve()
+            
+            # Fail-fast mode (raises on first error)
+            resolver.validate_all()  # Raises ValueError with detailed message
+            
+            # Collect all errors mode
+            errors = resolver.validate_all(fail_fast=False)
+            if errors:
+                for section, error_list in errors.items():
+                    print(f"{section}: {error_list}")
+        """
+        from cuga.config import ConfigValidator
+
+        errors = {}
+
+        # Get full resolved config
+        full_config = {}
+        for key in self.keys():
+            value = self.get_value(key)
+            # Reconstruct nested dict from dotted keys
+            keys = key.split(".")
+            current = full_config
+            for k in keys[:-1]:
+                if k not in current:
+                    current[k] = {}
+                current = current[k]
+            current[keys[-1]] = value
+
+        # Validate tool registry
+        registry_data = full_config.get("config", {}).get("tools") or full_config.get("tools")
+        if registry_data:
+            try:
+                ConfigValidator.validate_registry({"tools": registry_data})
+                logger.debug("✅ Tool registry validation passed")
+            except ValueError as e:
+                error_msg = str(e)
+                errors["registry"] = [error_msg]
+                logger.error(f"❌ Tool registry validation failed: {error_msg}")
+                if fail_fast:
+                    raise
+
+        # Validate guards
+        guards_data = full_config.get("config", {}).get("guards") or full_config.get("guards")
+        if guards_data:
+            try:
+                ConfigValidator.validate_guards(guards_data)
+                logger.debug("✅ Guards validation passed")
+            except ValueError as e:
+                error_msg = str(e)
+                errors["guards"] = [error_msg]
+                logger.error(f"❌ Guards validation failed: {error_msg}")
+                if fail_fast:
+                    raise
+
+        # Validate agent config
+        agent_data = full_config.get("config", {}).get("agent") or full_config.get("agent")
+        if agent_data:
+            try:
+                ConfigValidator.validate_agent_config(agent_data)
+                logger.debug("✅ Agent config validation passed")
+            except ValueError as e:
+                error_msg = str(e)
+                errors["agent"] = [error_msg]
+                logger.error(f"❌ Agent config validation failed: {error_msg}")
+                if fail_fast:
+                    raise
+
+        # Validate memory config
+        memory_data = full_config.get("config", {}).get("memory") or full_config.get("memory")
+        if memory_data:
+            try:
+                ConfigValidator.validate_memory_config(memory_data)
+                logger.debug("✅ Memory config validation passed")
+            except ValueError as e:
+                error_msg = str(e)
+                errors["memory"] = [error_msg]
+                logger.error(f"❌ Memory config validation failed: {error_msg}")
+                if fail_fast:
+                    raise
+
+        # Validate observability config
+        observability_data = (
+            full_config.get("config", {}).get("observability") or full_config.get("observability")
+        )
+        if observability_data:
+            try:
+                ConfigValidator.validate_observability_config(observability_data)
+                logger.debug("✅ Observability config validation passed")
+            except ValueError as e:
+                error_msg = str(e)
+                errors["observability"] = [error_msg]
+                logger.error(f"❌ Observability config validation failed: {error_msg}")
+                if fail_fast:
+                    raise
+
+        if not errors:
+            logger.info("✅ All configuration validation checks passed")
+
+        return errors

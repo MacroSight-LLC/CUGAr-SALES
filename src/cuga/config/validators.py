@@ -337,3 +337,135 @@ def validate_startup(mode: EnvironmentMode, fail_fast: bool = True) -> Validatio
         raise RuntimeError("\n".join(error_msg))
 
     return result
+
+
+# ============================================================================
+# Schema Validation (added in Phase 5: Config Single Source of Truth)
+# ============================================================================
+
+from typing import Any
+from pydantic import ValidationError as PydanticValidationError
+
+
+class ConfigValidator:
+    """Validates resolved configuration against Pydantic schemas."""
+
+    @staticmethod
+    def validate_registry(config: Dict[str, Any]):
+        """
+        Validate tool registry against schema.
+
+        Args:
+            config: Registry configuration dict (must have 'tools' key)
+
+        Returns:
+            Validated ToolRegistry instance
+
+        Raises:
+            ValidationError: If registry invalid with detailed error message
+        """
+        from .schemas.registry_schema import ToolRegistry
+
+        try:
+            registry = ToolRegistry(**config)
+            logger.info(f"✅ Registry validation passed: {len(registry.tools)} tools")
+            return registry
+        except PydanticValidationError as e:
+            logger.error(f"❌ Registry validation failed: {e}")
+            raise ValueError(f"Tool registry validation failed:\n{e}") from e
+
+    @staticmethod
+    def validate_guards(config: Dict[str, Any]):
+        """
+        Validate guards configuration against schema.
+
+        Args:
+            config: Guards configuration dict (must have 'guards' and 'default_action' keys)
+
+        Returns:
+            Validated GuardsConfig instance
+
+        Raises:
+            ValidationError: If guards invalid
+        """
+        from .schemas.guards_schema import GuardsConfig
+
+        try:
+            guards = GuardsConfig(**config)
+            logger.info(f"✅ Guards validation passed: {len(guards.guards)} rules")
+            return guards
+        except PydanticValidationError as e:
+            logger.error(f"❌ Guards validation failed: {e}")
+            raise ValueError(f"Guards configuration validation failed:\n{e}") from e
+
+    @staticmethod
+    def validate_agent_config(config: Dict[str, Any]):
+        """
+        Validate agent configuration against schema.
+
+        Args:
+            config: Agent configuration dict
+
+        Returns:
+            Validated AgentConfig instance
+
+        Raises:
+            ValidationError: If config invalid
+        """
+        from .schemas.agent_schema import AgentConfig
+
+        try:
+            agent_config = AgentConfig(**config)
+            logger.info(f"✅ Agent config validation passed: {agent_config.name}")
+            return agent_config
+        except PydanticValidationError as e:
+            logger.error(f"❌ Agent config validation failed: {e}")
+            raise ValueError(f"Agent configuration validation failed:\n{e}") from e
+
+    @staticmethod
+    def validate_memory_config(config: Dict[str, Any]):
+        """
+        Validate memory configuration against schema.
+
+        Args:
+            config: Memory configuration dict
+
+        Returns:
+            Validated MemoryConfig instance
+
+        Raises:
+            ValidationError: If config invalid
+        """
+        from .schemas.agent_schema import MemoryConfig
+
+        try:
+            memory_config = MemoryConfig(**config)
+            logger.info(f"✅ Memory config validation passed: backend={memory_config.backend}")
+            return memory_config
+        except PydanticValidationError as e:
+            logger.error(f"❌ Memory config validation failed: {e}")
+            raise ValueError(f"Memory configuration validation failed:\n{e}") from e
+
+    @staticmethod
+    def validate_observability_config(config: Dict[str, Any]):
+        """
+        Validate observability configuration against schema.
+
+        Args:
+            config: Observability configuration dict
+
+        Returns:
+            Validated ObservabilityConfig instance
+
+        Raises:
+            ValidationError: If config invalid
+        """
+        from .schemas.agent_schema import ObservabilityConfig
+
+        try:
+            obs_config = ObservabilityConfig(**config)
+            logger.info(f"✅ Observability config validation passed: emitter={obs_config.emitter}")
+            return obs_config
+        except PydanticValidationError as e:
+            logger.error(f"❌ Observability config validation failed: {e}")
+            raise ValueError(f"Observability configuration validation failed:\n{e}") from e
