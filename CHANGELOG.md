@@ -7,6 +7,56 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 
 ## vNext
 
+### Added: MCP & OpenAPI Governance with Policy Gates (2025-01-01)
+
+- **Governance Engine** (`src/cuga/security/governance.py`, 400+ lines): Implemented comprehensive governance system for MCP/OpenAPI tool execution with policy gates, per-tenant capability maps, and approval workflows per AGENTS.md § 4 Sandbox Expectations. Core components: `ActionType` enum (READ/WRITE/DELETE/FINANCIAL/EXTERNAL severity classification), `ToolCapability` dataclass (defines action_type, requires_approval flag, approval_timeout_seconds, allowed_tenants/denied_tenants sets, max_rate_per_minute limits, metadata), `TenantCapabilityMap` dataclass (tenant-specific allowed_tools/denied_tools sets, max_concurrent_calls, budget_ceiling), `ApprovalRequest` dataclass (tracks PENDING/APPROVED/REJECTED/EXPIRED status with expiration timestamps and rejection reasons), `GovernanceEngine` class (validates tool calls against capability maps + tenant maps, enforces rate limits with sliding window per tenant/tool, creates approval requests with HITL gates, manages approval lifecycle with atomic status transitions). Key features: Layered validation (tool registration → tenant capability map → tool-level tenant restrictions → rate limits), automatic approval for READ actions, time-bounded approval requests with expiration enforcement, detailed PolicyViolation errors with diagnostic context, structured audit logging with trace_id propagation.
+- **Registry Health Monitor** (`src/cuga/security/health_monitor.py`, 450+ lines): Implemented runtime health checks for tool registry with discovery ping, schema drift detection, and cache TTLs to prevent huge cold-start lists. Core components: `HealthCheckResult` dataclass (tracks tool_name, is_healthy, checked_at, response_time_ms, error_message, metadata), `SchemaSignature` dataclass (captures schema_hash via SHA256 for deterministic drift detection), `CachedToolSpec` dataclass (TTL-based cache entries with expiration logic), `RegistryHealthMonitor` class (manages tool discovery with concurrent pings, schema drift detection with signature comparison, cache management with TTL enforcement, cold start protection limiting discovery to max_cold_start_tools). Key features: Periodic discovery pings (5 min default) with async concurrent execution, schema drift detection via SHA256 hash comparison of sorted schemas with baseline capture and alert on changes, cache TTL enforcement (1 hour default) with invalidation API for single/all tools, cold start protection truncating discovery to first 100 tools to prevent timeouts, metrics summary (total/healthy/unhealthy/cached tools, avg response time, last discovery/schema check timestamps).
+- **Governance Configuration Files**: Created two YAML configs in `configurations/policies/`: `governance_capabilities.yaml` (defines ToolCapability per tool with 15+ example tools: slack_send_message/email_send/twilio_sms WRITE with approval, file_read READ no approval, file_write/file_delete/database_mutate with escalating timeouts, stock_order_place/payment_process FINANCIAL with short timeouts and tenant restrictions, mailchimp_campaign/wordpress_post_create/openapi_post EXTERNAL with tenant filtering), `tenant_capabilities.yaml` (defines TenantCapabilityMap for 8 organizational roles: marketing with communication tools allowed and financial denied, trading with financial allowed and marketing tools denied, engineering with full access, support with read-only data, data_science/finance/content/analytics with role-specific tool subsets). Access control logic: Tenant denylist → Tenant allowlist (empty = all) → Tool-level tenant restrictions → Rate limits.
+- **Governance Loader** (`src/cuga/security/governance_loader.py`, 200+ lines): Created loader utilities for governance integration with existing policy system. Functions: `load_governance_capabilities()` (parses YAML into ToolCapability dicts with action_type enum validation), `load_tenant_capability_maps()` (parses YAML into TenantCapabilityMap dicts with set conversions), `create_governance_engine()` (factory function loading both configs and returning initialized GovernanceEngine), `merge_governance_with_profile_policy()` (defense-in-depth merger applying tenant capability map filters to profile policy allowed_tools, intersection logic for dual approval, metadata schema extension for tenant/approval_request_id fields). Default paths: `configurations/policies/governance_capabilities.yaml` and `tenant_capabilities.yaml`.
+- **Comprehensive Test Coverage** (`tests/security/test_governance.py`, 350+ lines, `tests/security/test_health_monitor.py`, 400+ lines): Created test suites with 35+ tests covering: Governance validation (tool not registered, tenant denied by map/capability, tool allowed for tenant/all tenants, rate limit enforcement with sliding window), Approval lifecycle (required tool creates PENDING request, not required auto-approves, approve/reject transitions, expiration enforcement with expired check, status queries), Tenant capability maps (empty allowlist allows all except denied, explicit allowlist filters, denied trumps allowed), Tool capabilities (empty allowed_tenants allows all, explicit tenants filter, denied_tenants override), Health monitoring (cache TTL enforcement with expiration, invalidation single/all tools, schema signature generation with SHA256, drift detection with hash comparison, tool discovery with concurrent pings, cold start protection truncating to max_cold_start_tools, metrics summary generation).
+- **Governance Documentation** (`docs/security/GOVERNANCE.md`, 500+ lines): Created comprehensive governance guide with: Architecture diagram (Request → GovernanceEngine → RegistryHealthMonitor → Tool Execution), Component specs (Policy gates with action types and approval flow, Tenant capability maps with access control logic, Runtime health checks with discovery/drift/cache), Configuration file schemas and examples, Integration patterns for orchestrator (cache check → governance validation → approval gate → tool execution), Testing summary with coverage breakdown, Observability guidance (structured logging with trace_id, OpenTelemetry span emission), Security considerations (defense in depth, fail-safe defaults, audit trail, rate limiting, approval expiration, schema drift alerts, cold start protection), Future enhancements roadmap (async approval webhooks, budget enforcement, concurrent call limits, approval delegation, audit log export, dynamic capability updates, health check telemetry).
+
+**Key Features**:
+- **Policy Gates**: HITL approval points for WRITE/DELETE/FINANCIAL actions with configurable timeouts (300s/600s/120s)
+- **Per-Tenant Capability Maps**: 8 organizational roles (marketing/trading/engineering/support/data_science/finance/content/analytics) with tool allowlists/denylists
+- **Layered Access Control**: Tool registration → Tenant map → Tool-level restrictions → Rate limits (4 validation layers)
+- **Rate Limiting**: Per tenant/tool sliding window enforcement (5-100 calls/min configurable)
+- **Approval Lifecycle**: PENDING → APPROVED/REJECTED/EXPIRED with atomic transitions and expiration enforcement
+- **Runtime Health Checks**: Periodic discovery ping (5 min), schema drift detection (SHA256), cache TTL (1 hour)
+- **Cold Start Protection**: Truncate discovery to 100 tools max to prevent huge registry timeouts
+- **Schema Drift Detection**: SHA256 hash comparison of sorted schemas with baseline capture and alert
+- **Cache Management**: TTL-based caching with invalidation API and expiration enforcement
+- **Defense in Depth**: Works alongside profile policies (AGENTS.md § 3) for dual approval
+
+**Security Guardrails Enforced**:
+- **Approval Required**: All WRITE/DELETE/FINANCIAL/EXTERNAL actions require HITL approval by default
+- **Tenant Isolation**: Deny-by-default with explicit allowlist per tenant (e.g., trading cannot use marketing tools)
+- **Rate Limits**: Prevent runaway tool execution (10-100 calls/min per tool/tenant)
+- **Approval Expiration**: Time-bounded requests (120s-600s) prevent stale approvals
+- **Denied Tenants**: Financial tools explicitly denied for marketing/support roles
+- **Read-Only**: READ actions auto-approved (file_read, database_query) for all tenants
+- **Cold Start Limits**: Max 100 tools discovered on cold start prevents denial-of-service
+
+**Configuration Files**:
+- `configurations/policies/governance_capabilities.yaml`: 15+ tool capability definitions with action types, approval requirements, tenant restrictions, rate limits
+- `configurations/policies/tenant_capabilities.yaml`: 8 tenant capability maps with allowed/denied tools, concurrent call limits, budget ceilings
+
+**Integration Points**:
+- Orchestrator: Call `governance_engine.validate_tool_call()` before tool execution, `governance_engine.request_approval()` for HITL gates
+- Health Monitor: Call `health_monitor.discover_tools()` on startup, `health_monitor.check_schema_drift()` periodically
+- Profile Policies: Use `merge_governance_with_profile_policy()` for defense-in-depth dual approval
+- Observability: Emit spans for governance decisions, log approval requests with trace_id
+
+**Testing Coverage**:
+- ✅ Tool registration validation (unknown tools rejected)
+- ✅ Tenant capability map enforcement (allowlist/denylist intersection)
+- ✅ Tool-level tenant restrictions (allowed_tenants/denied_tenants)
+- ✅ Rate limiting per tenant/tool (sliding window with expiration)
+- ✅ Approval lifecycle (PENDING → APPROVED/REJECTED/EXPIRED transitions)
+- ✅ Cache TTL enforcement (expiration and invalidation)
+- ✅ Schema drift detection (SHA256 hash comparison)
+- ✅ Health check discovery (concurrent pings with cold start protection)
+
 ### Added: Eval/Exec Elimination & Safe Code Execution (2025-01-01)
 
 - **Safe Expression Evaluator** (`src/cuga/backend/tools_env/code_sandbox/safe_eval.py`, 300+ lines): Created AST-based expression evaluator replacing unsafe `eval()` calls per AGENTS.md § 4 Sandbox Expectations. `SafeExpressionEvaluator` class parses expressions into AST, validates against allowlisted operators (Add/Sub/Mul/Div/FloorDiv/Mod/Pow) and functions (math.sin/cos/tan/sqrt/log/exp, abs/round/min/max/sum), enforces recursion depth limit (max 50), rejects forbidden operations (assignments/imports/attribute access/eval/exec/__import__), handles division by zero safely. Convenience function `safe_eval_expression()` provides drop-in replacement for `eval()` with numeric-only results (returns float).

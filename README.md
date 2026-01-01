@@ -135,6 +135,15 @@ See `AGENTS.md` for role details and `USAGE.md` for end-to-end flows.
 
 CUGAR Agent enforces security-first design with deny-by-default policies per [AGENTS.md](AGENTS.md) § 4 Sandbox Expectations:
 
+### MCP & OpenAPI Governance
+
+- **Policy Gates**: HITL approval points for WRITE/DELETE/FINANCIAL actions (Slack send, file delete, stock orders)
+- **Per-Tenant Capability Maps**: 8 organizational roles (marketing/trading/engineering/support) with tool allowlists/denylists
+- **Runtime Health Checks**: Tool discovery ping, schema drift detection, cache TTLs to prevent huge cold-start lists
+- **Layered Access Control**: Tool registration → Tenant map → Tool-level restrictions → Rate limits
+
+See [docs/security/GOVERNANCE.md](docs/security/GOVERNANCE.md) for complete governance architecture, configuration files, and integration patterns.
+
 ### Eval/Exec Elimination
 - **No eval/exec**: All `eval()` and `exec()` calls eliminated from production code paths
 - **AST-based expression evaluation**: Use `safe_eval_expression()` from `cuga.backend.tools_env.code_sandbox.safe_eval` for mathematical expressions
