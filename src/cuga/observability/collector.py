@@ -194,6 +194,12 @@ class ObservabilityCollector:
         with self._buffer_lock:
             self._flush_buffer()
     
+    @property
+    def events(self) -> List[StructuredEvent]:
+        """Get copy of current event buffer for testing/inspection."""
+        with self._buffer_lock:
+            return self._event_buffer.copy()
+    
     def export_metrics(self) -> None:
         """Export current golden signals to all exporters."""
         for exporter in self.exporters:
