@@ -236,3 +236,23 @@ class AsyncSafeClient:
     async def __aexit__(self, *args: Any) -> None:
         """Async context manager exit with automatic cleanup."""
         await self.aclose()
+
+
+# Public redact_url function for use in logging/observability
+def redact_url(url: str) -> str:
+    """
+    Redact sensitive URL components for safe logging.
+    
+    Per AGENTS.md § 5 (PII-safe logs): Strip credentials, query params, API keys.
+    
+    Args:
+        url: Full URL to redact
+    
+    Returns:
+        Redacted URL safe for logging
+    
+    Example:
+        >>> redact_url("https://user:pass@api.example.com/v1/api_key/sk-123?token=abc")
+        "https://api.example.com/v1/api_key/[REDACTED]"
+    """
+    return SafeClient._redact_url(url)
