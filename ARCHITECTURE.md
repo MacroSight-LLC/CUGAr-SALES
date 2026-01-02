@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/image/CUGAr.png" alt="CUGAr Logo" width="400"/>
+</div>
+
 # Architecture Overview
 
 > **For a narrative walkthrough of the complete execution flow**, see [`docs/SYSTEM_EXECUTION_NARRATIVE.md`](docs/SYSTEM_EXECUTION_NARRATIVE.md) - traces request → response with CLI/FastAPI/MCP examples, routing decisions, agent lifecycle, memory operations, and tool execution.

@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/image/CUGAr.png" alt="CUGAr Logo" width="600"/>
+</div>
+
 # CUGAR Agent (2025 Edition)
 
 [![CI](https://github.com/TylrDn/cugar-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/TylrDn/cugar-agent/actions/workflows/ci.yml)
@@ -121,6 +125,30 @@ See `AGENTS.md` for role details and `USAGE.md` for end-to-end flows.
 - Structured audit logs live under `logs/` when enabled; avoid committing artifacts.
 - Watsonx Granite calls validate credentials up front and append JSONL audit rows with timestamp, actor, parameters, and outcome for offline review.
 
+### Observability preview
+
+- The FastAPI orchestrator exposes a Prometheus-compatible metrics endpoint at `/metrics` (default port 8000). This endpoint exports golden-signal metrics such as `cuga_requests_total`, `cuga_success_rate`, `cuga_latency_ms{percentile="p50|p95|p99"}`, `cuga_tool_error_rate`, `cuga_budget_warnings_total`, and `cuga_budget_exceeded_total`.
+- Configure OpenTelemetry (OTLP) or console exporters via environment variables. Common envs:
+  - `OTEL_EXPORTER_OTLP_ENDPOINT` — OTLP HTTP/gRPC endpoint for traces/metrics (optional; when unset the console exporter is used).
+  - `OTEL_SERVICE_NAME` — service name to appear in traces (default: `cuga-orchestrator`).
+  - `OTEL_TRACES_EXPORTER` / `OTEL_METRICS_EXPORTER` — exporter type (otlp, logging, none).
+
+Example: curl the metrics endpoint locally
+
+```bash
+# If running the orchestrator locally on port 8000
+curl -sS http://localhost:8000/metrics | head -n 80
+
+# Expected sample lines (Prometheus format):
+# cuga_requests_total 42
+# cuga_success_rate 0.95
+# cuga_latency_ms{percentile="p50"} 150.0
+# cuga_latency_ms{percentile="p95"} 450.0
+# cuga_tool_error_rate 0.02
+# cuga_budget_warnings_total 3
+# cuga_budget_exceeded_total 0
+```
+
 ## Multi-Agent & Coordination
 - `agents/` outlines planner/worker/tool-user patterns and how to register them with CrewAI/AutoGen.
 - `examples/multi_agent_dispatch.py` demonstrates round-robin delegation with shared vector context.
@@ -130,6 +158,37 @@ See `AGENTS.md` for role details and `USAGE.md` for end-to-end flows.
 - Run `make lint test typecheck` locally.
 - Pytest with coverage is configured (see `TESTING.md`).
 - CI (GitHub Actions) runs lint, type-check, tests, and guardrail verification on pushes/PRs.
+
+## Security Model
+
+CUGAR Agent enforces **security-first design with deny-by-default policies** per [AGENTS.md](AGENTS.md):
+
+### Core Security Principles
+1. **Allowlist-First Tool Selection**: Only explicitly allowed tools from `cuga.modular.tools.*` can execute
+2. **Deny-by-Default Network**: Network egress restricted to domain allowlist; localhost/private networks blocked by default
+3. **Sandbox Isolation**: All tool execution in isolated sandboxes (py/node slim|full, orchestrator profiles) with read-only mounts
+4. **Budget Enforcement**: Cost ceilings (default: 100 units/task) with `warn` or `block` policies
+5. **Human-in-the-Loop Approval**: High-risk operations (DELETE, FINANCIAL) require explicit approval before execution
+
+### Security Architecture
+```
+Request → Budget Guard → Tool Allowlist → Parameter Validation → Network Policy → Sandbox Execution
+            ↓               ↓                    ↓                      ↓               ↓
+       (ceiling=100)   (cuga.modular   (type/range/pattern)    (domain allowlist) (read-only)
+                        .tools.* only)                          (no localhost)
+```
+
+**Approval Flow** (HITL):
+- **Low-risk (READ)**: Auto-approved, logged
+- **Medium-risk (WRITE)**: Auto-approved with audit trail
+- **High-risk (DELETE, FINANCIAL)**: Requires human approval (5min timeout, reject on timeout)
+
+**Budget Policy**:
+- `AGENT_BUDGET_CEILING=100` (default): Max cost units per task
+- `AGENT_BUDGET_POLICY=warn|block`: Warn and continue, or block execution
+- `AGENT_ESCALATION_MAX=2`: Max approval escalations before admin approval required
+
+See [SECURITY.md](SECURITY.md) for complete security controls and [docs/security/GOVERNANCE.md](docs/security/GOVERNANCE.md) for governance architecture.
 
 ## Security & Safe Execution
 
@@ -175,6 +234,59 @@ See [docs/security/GOVERNANCE.md](docs/security/GOVERNANCE.md) for complete gove
 - **Read-only defaults**: Mounts are read-only by default; `/workdir` pinning for exec scopes
 
 See [AGENTS.md](AGENTS.md) for complete guardrail specifications and [docs/security/](docs/security/) for detailed security controls.
+
+## Observability & Monitoring
+
+CUGAR Agent provides **production-grade observability** with structured events, golden signals, and multi-backend export:
+
+### Observability Stack
+- **Structured Events**: `plan_created`, `route_decision`, `tool_call_start/complete/error`, `budget_warning/exceeded`, `approval_requested/received/timeout`
+- **Golden Signals**: Success rate (%), latency (P50/P95/P99), tool error rate (%), mean steps/task, approval wait time, budget utilization
+- **Trace Propagation**: `trace_id` flows through CLI → planner → worker → coordinator → tools with parent-child relationships
+- **PII Redaction**: Auto-redact sensitive keys (`secret`, `token`, `password`, `api_key`, `credential`, `auth`) before emission
+
+### Monitoring Endpoints
+```bash
+# Prometheus metrics endpoint (scrape target)
+curl http://localhost:8000/metrics
+
+# Expected metrics:
+cuga_requests_total              # Total requests handled
+cuga_success_rate               # % successful requests
+cuga_latency_ms{percentile}     # P50/P95/P99 latency
+cuga_tool_error_rate            # % failed tool calls
+cuga_steps_per_task             # Mean planning steps
+cuga_budget_warnings_total      # Budget warnings emitted
+cuga_budget_exceeded_total      # Budget hard blocks
+cuga_approval_requests_total{status}  # Approval flow tracking
+```
+
+### Multi-Backend Support
+- **OpenTelemetry (OTLP)**: Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318` for Jaeger/Zipkin/Tempo
+- **LangFuse**: Set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` for LLM tracing
+- **LangSmith**: Set `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`, `LANGCHAIN_ENDPOINT`
+- **Console (Default)**: Offline-first JSON logs to stdout (no network required)
+
+### Grafana Dashboard
+Import pre-built dashboard from `observability/grafana_dashboard.json`:
+- Request rate & success rate panels
+- Latency percentile charts (P50/P95/P99)
+- Tool error breakdown by tool/type
+- Budget utilization gauge
+- Approval queue depth
+- Event timeline with filtering
+
+**Configuration**:
+```bash
+# Enable OTEL export
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+export OTEL_SERVICE_NAME="cuga-orchestrator"
+
+# Start with observability
+uv run cuga start demo
+```
+
+See [docs/observability/OBSERVABILITY_GUIDE.md](docs/observability/OBSERVABILITY_GUIDE.md) for detailed instrumentation guide and [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for metrics scraping setup.
 
 ## FAQ
 - **Which LLMs are supported?** 

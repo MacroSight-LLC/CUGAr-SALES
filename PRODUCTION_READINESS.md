@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/image/CUGAr.png" alt="CUGAr Logo" width="400"/>
+</div>
+
 # ✅ Production Readiness Checklist – v1.0.0
 
 This checklist ensures the CUGAR Agent system is hardened, documented, and version-controlled for production release.
@@ -444,6 +448,246 @@ curl -X POST http://cuga-agent:8000/api/v1/registry/reload
 - [x] `/config/` stores Hydra-composed registry defaults and fragment overrides with inheritance markers
 - [x] `/tests/` directory exists with core coverage
 - [x] `/examples/` directory demonstrates agent usage
+
+---
+
+## 🚀 Deployment & Rollback Procedures
+
+### Container Image Pinning Policy
+
+Per AGENTS.md § Registry Hygiene: **No `:latest` tags in production**.
+
+- **Enforcement**: CI checks block `:latest` tags in `ops/docker-compose.proposed.yaml`
+- **Pinning Strategy**: 
+  - Use semantic versioning tags (e.g., `v0.2.0`, `v1.0.0`)
+  - Pin to specific digests after validation: `image@sha256:abc123...`
+- **Current Pinned Versions**:
+  - `cuga/orchestrator:v0.2.0`
+  - `fastmcp/filesystem:v1.0.0`
+  - `fastmcp/git:v2.0.0`
+  - `fastmcp/browser:v1.0.0`
+  - `otel/opentelemetry-collector:0.91.0`
+  - `qdrant/qdrant:v1.7.0`
+  - `ollama/ollama:0.1.17`
+
+### Kubernetes Deployment
+
+All K8s manifests located in `ops/k8s/`:
+- `namespace.yaml`: Namespace, quotas, resource limits, PVCs
+- `orchestrator-deployment.yaml`: Orchestrator with health checks, HPA, resource limits
+- `mcp-services-deployment.yaml`: MCP Tier 1 & Tier 2 services
+- `configmaps.yaml`: Config data (settings, registry, OTEL collector config)
+- `secrets.yaml`: Secret templates (DO NOT commit actual secrets)
+- `README.md`: Complete deployment guide
+
+**Quick Deploy**:
+```bash
+cd ops/k8s/
+kubectl apply -f namespace.yaml
+kubectl apply -f configmaps.yaml
+kubectl create secret generic cuga-orchestrator-secrets \
+  --from-env-file=../env/orchestrator.env --namespace=cugar
+kubectl apply -f orchestrator-deployment.yaml
+kubectl apply -f mcp-services-deployment.yaml
+```
+
+### Rolling Update (Zero Downtime)
+
+Orchestrator deployment uses `RollingUpdate` strategy with `maxUnavailable: 0`:
+
+```bash
+# Update to new version
+kubectl set image deployment/cuga-orchestrator -n cugar \
+  orchestrator=cuga/orchestrator:v0.3.0
+
+# Watch rollout progress
+kubectl rollout status deployment/cuga-orchestrator -n cugar
+
+# Monitor health during rollout
+watch kubectl get pods -n cugar -l app=cuga-orchestrator
+```
+
+**Health Check Gates**:
+- **Startup Probe**: 60s grace period for initialization
+- **Readiness Probe**: Pod must pass `/health` check before receiving traffic
+- **Liveness Probe**: Pod restarted if `/health` fails after 3 attempts (30s interval)
+
+### Rollback Procedures
+
+#### Kubernetes Rollback
+
+**Fast Rollback (Automated)**:
+```bash
+# Rollback to previous version (takes ~30s)
+kubectl rollout undo deployment/cuga-orchestrator -n cugar
+
+# Verify rollback
+kubectl rollout status deployment/cuga-orchestrator -n cugar
+kubectl get pods -n cugar -l app=cuga-orchestrator -o wide
+```
+
+**Rollback to Specific Revision**:
+```bash
+# View deployment history
+kubectl rollout history deployment/cuga-orchestrator -n cugar
+
+# Rollback to revision N
+kubectl rollout undo deployment/cuga-orchestrator -n cugar --to-revision=3
+```
+
+**Rollback Verification**:
+```bash
+# Check logs for errors
+kubectl logs -n cugar deploy/cuga-orchestrator --tail=50
+
+# Test health endpoint
+kubectl exec -n cugar deploy/cuga-orchestrator -- curl http://localhost:8000/health
+
+# Check metrics
+kubectl exec -n cugar deploy/cuga-orchestrator -- curl http://localhost:8000/metrics | grep cuga_requests_total
+```
+
+#### Docker Compose Rollback
+
+**Fast Rollback**:
+```bash
+cd ops/
+# Revert docker-compose.proposed.yaml to previous version
+git checkout HEAD~1 -- docker-compose.proposed.yaml
+
+# Restart services
+docker-compose -f docker-compose.proposed.yaml down
+docker-compose -f docker-compose.proposed.yaml up -d
+
+# Verify health
+docker-compose -f docker-compose.proposed.yaml ps
+curl -f http://localhost:8000/health
+```
+
+### Config Rollback
+
+**Registry Changes** (tool additions/removals):
+```bash
+# Rollback registry.yaml
+git checkout HEAD~1 -- docs/mcp/registry.yaml
+
+# Reload registry without restart (if hot-reload enabled)
+curl -X POST http://localhost:8000/admin/registry/reload \
+  -H "Authorization: Bearer ${AGENT_TOKEN}"
+
+# Or restart orchestrator to pick up changes
+kubectl rollout restart deployment/cuga-orchestrator -n cugar
+```
+
+**ConfigMap Changes**:
+```bash
+# Rollback ConfigMap
+kubectl rollout undo configmap/cuga-orchestrator-config -n cugar
+
+# Restart pods to pick up new config
+kubectl rollout restart deployment/cuga-orchestrator -n cugar
+```
+
+### Disaster Recovery Failover
+
+**Multi-Region Failover** (if secondary region deployed):
+```bash
+# Switch DNS/load balancer to secondary region
+# (Implementation depends on infrastructure: Route53, CloudFlare, etc.)
+
+# Verify secondary is healthy
+kubectl config use-context prod-us-east-1
+kubectl get pods -n cugar -l app=cuga-orchestrator
+kubectl logs -n cugar deploy/cuga-orchestrator --tail=20
+
+# Scale up secondary (if in standby mode)
+kubectl scale deployment cuga-orchestrator -n cugar --replicas=2
+```
+
+**Database Failover** (PostgreSQL):
+```bash
+# Promote replica to primary
+pg_ctl promote -D /var/lib/postgresql/data
+
+# Update app config to point to new primary
+kubectl set env deployment/cuga-orchestrator -n cugar \
+  POSTGRES_HOST=new-primary-host
+
+# Restart pods
+kubectl rollout restart deployment/cuga-orchestrator -n cugar
+```
+
+### Rollback Decision Matrix
+
+| Failure Type | Rollback Method | Time to Recover | Data Loss Risk |
+|--------------|-----------------|-----------------|----------------|
+| Bad container image | K8s rollback | ~30s | None (stateless) |
+| Registry config error | Git revert + reload | ~10s | None |
+| Database migration failure | Restore from backup | ~5min | Depends on backup age |
+| Network policy change | Revert YAML + kubectl apply | ~15s | None |
+| Secret rotation issue | Restore old secret | ~30s | None |
+| Multi-service failure | Full environment restore | ~10min | Depends on backup |
+
+### Rollback Testing
+
+**Pre-Deploy Validation**:
+```bash
+# Test in staging environment first
+kubectl config use-context staging
+kubectl apply -f ops/k8s/
+
+# Run smoke tests
+./tests/smoke/test_deployment.sh
+
+# If passing, deploy to production
+kubectl config use-context production
+kubectl apply -f ops/k8s/
+```
+
+**Rollback Drills** (monthly):
+```bash
+# Deploy canary version
+kubectl apply -f ops/k8s/orchestrator-canary.yaml
+
+# Simulate failure and rollback
+kubectl rollout undo deployment/cuga-orchestrator-canary -n cugar
+
+# Document rollback time and issues
+```
+
+### Post-Rollback Actions
+
+1. **Root Cause Analysis**: Document what went wrong in incident report
+2. **Audit Trail Review**: Check observability events for failure patterns
+3. **Update Tests**: Add regression tests to prevent recurrence
+4. **Update Runbook**: Document new rollback scenarios
+5. **Notify Stakeholders**: Send incident summary with resolution
+
+### Rollout/Rollback Observability
+
+**Golden Signals to Monitor**:
+- `cuga_requests_total`: Should remain steady during rollout
+- `cuga_success_rate`: Should not drop below 99% during rollout
+- `cuga_latency_ms`: P95 should not spike >10% during rollout
+- `cuga_tool_error_rate`: Should remain <1% during rollout
+
+**Prometheus Alerts** (example):
+```yaml
+- alert: RolloutDegradedPerformance
+  expr: cuga_success_rate < 0.99
+  for: 2m
+  annotations:
+    summary: "Rollout causing degraded performance (success rate {{ $value }})"
+    action: "Consider rollback: kubectl rollout undo deployment/cuga-orchestrator -n cugar"
+
+- alert: RolloutLatencySpike
+  expr: cuga_latency_ms{percentile="p95"} > 1.1 * cuga_latency_ms{percentile="p95"} offset 10m
+  for: 3m
+  annotations:
+    summary: "Rollout causing P95 latency spike"
+```
+
+**Grafana Dashboard**: Import `observability/grafana_dashboard.json` for real-time rollout monitoring.
 
 ---
 

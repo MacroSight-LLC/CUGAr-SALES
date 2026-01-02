@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/image/CUGAr.png" alt="CUGAr Logo" width="400"/>
+</div>
+
 # Contributing Guide
 
 Thank you for helping make CUGAR Agent a reliable, modular agent stack. Please follow these steps so changes stay aligned with the guardrails defined in `AGENTS.md`.

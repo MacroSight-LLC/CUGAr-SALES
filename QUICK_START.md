@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/image/CUGAr.png" alt="CUGAr Logo" width="500"/>
+</div>
+
 # 🚀 Cugar Agent - Quick Start Guide
 
 Welcome to Cugar Agent! This guide will get you up and running in minutes.

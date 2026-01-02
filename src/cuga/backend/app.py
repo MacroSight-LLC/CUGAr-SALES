@@ -4,12 +4,14 @@ import hashlib
 import os
 import secrets
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from cuga.planner.core import Planner
 from cuga.coordinator.core import Coordinator
 from cuga.workers.base import Worker
 from cuga.registry.loader import Registry
 from cuga.observability import propagate_trace
+from cuga.observability.collector import get_collector, set_collector
+from cuga.observability import ObservabilityCollector, OTELExporter, ConsoleExporter
 from pathlib import Path
 
 registry_path = Path("docs/mcp/registry.yaml")
@@ -30,6 +32,32 @@ def get_expected_token_hash() -> bytes:
 
 
 app = FastAPI(title="Cuga Backend")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize observability collector on startup per AGENTS.md § Observability & Tracing."""
+    # Configure exporters from environment
+    exporters = []
+    
+    # OTEL exporter (if endpoint configured)
+    otel_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if otel_endpoint:
+        exporters.append(OTELExporter(
+            endpoint=otel_endpoint,
+            service_name=os.environ.get("OTEL_SERVICE_NAME", "cugar-agent"),
+        ))
+    
+    # Console exporter (always enabled for offline-first operation)
+    exporters.append(ConsoleExporter(pretty=False))
+    
+    # Initialize global collector
+    collector = ObservabilityCollector(
+        exporters=exporters,
+        auto_export=True,
+        buffer_size=int(os.environ.get("OBSERVABILITY_BUFFER_SIZE", "1000")),
+    )
+    set_collector(collector)
 
 
 @app.middleware("http")
@@ -59,6 +87,17 @@ async def budget_guard(request, call_next):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+async def metrics():
+    """
+    Prometheus metrics endpoint per AGENTS.md § Observability & Tracing.
+    
+    Returns metrics in Prometheus text format for scraping.
+    """
+    collector = get_collector()
+    return collector.get_prometheus_metrics()
 
 
 @app.post("/plan")

@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../image/CUGAr.png" alt="CUGAr Logo" width="500"/>
+</div>
+
 # Getting Started with CUGAR Agent
 
 This guide walks you through setting up and running the CUGAR agent system.

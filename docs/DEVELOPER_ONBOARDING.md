@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../image/CUGAr.png" alt="CUGAr Logo" width="500"/>
+</div>
+
 # Developer Onboarding Guide
 
 **Status**: Canonical Reference  

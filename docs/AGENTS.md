@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../image/CUGAr.png" alt="CUGAr Logo" width="400"/>
+</div>
+
 # AGENTS Documentation Canonical Mirror
 
 > This file is the canonical source for guardrail instructions. The root `AGENTS.md` mirrors this content and points back here.

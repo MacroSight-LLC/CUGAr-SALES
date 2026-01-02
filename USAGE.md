@@ -77,6 +77,80 @@ print(result.output)
 - Use `rag/loader.py` to ingest content and `rag/retriever.py` for queries.
 - Toggle `RAG_ENABLED=true` in `.env` to opt-in.
 
+## Config Reference & Precedence
+
+Configuration precedence follows the canonical order described in `AGENTS.md` (Configuration Policy):
+
+1. CLI arguments (highest precedence)
+2. Environment variables (for Dynaconf use `DYNACONF_<SECTION>__<KEY>` or explicit envs like `AGENT_*`, `OTEL_*`)
+3. `.env` files (project `.env`, `ops/env/*.env`, `.env.mcp`)
+4. YAML configs (e.g., `registry.yaml`, `configs/*.yaml`)
+5. TOML configs (e.g., `settings.toml`, `eval_config.toml`)
+6. Configuration defaults (Dynaconf validators)
+7. Hardcoded defaults (lowest precedence)
+
+Notes:
+- Deep merges are used for nested dictionaries (dicts merge), while lists are replaced (no implicit list merging).
+- Use `DYNACONF_` envvar prefixes for Dynaconf-managed sections when you need to override nested values from the environment (e.g. `DYNACONF_ADVANCED_FEATURES__LITE_MODE=false`).
+
+Example: override message window limit via env
+
+```bash
+export DYNACONF_ADVANCED_FEATURES__MESSAGE_WINDOW_LIMIT=50
+```
+
+Guardrail & policy configuration examples (YAML snippets)
+
+`configs/guardrail_policy.yaml` (example)
+
+```yaml
+tool_allowlist:
+  - filesystem_read
+  - web_search
+
+tool_denylist:
+  - dangerous_tool
+
+parameter_schemas:
+  filesystem_read:
+    path:
+      type: string
+      required: true
+      pattern: "^[a-zA-Z0-9/_\-\.]+$"
+
+network_egress:
+  allowed_domains:
+    - api.openai.com
+    - example.com
+  block_localhost: true
+  block_private_networks: true
+
+budget:
+  AGENT_BUDGET_CEILING: 100
+  AGENT_BUDGET_POLICY: warn
+  AGENT_ESCALATION_MAX: 2
+```
+
+Loading precedence sanity check (local)
+
+```bash
+# 1) Make a small TOML
+cat > /tmp/test_settings.toml <<'TOML'
+[features]
+thoughts = false
+TOML
+
+# 2) Override via env
+export DYNACONF_FEATURES__THOUGHTS=true
+
+# 3) Create Dynaconf instance (Python)
+python - <<'PY'
+from dynaconf import Dynaconf
+settings = Dynaconf(settings_files=['/tmp/test_settings.toml'], envvar_prefix='DYNACONF')
+print('thoughts:', settings.features.thoughts)
+PY
+```
+
 ## Observability Hooks
 - **Langfuse**: set `LANGFUSE_SECRET` + `LANGFUSE_PUBLIC_KEY`; calls are emitted via `observability/langfuse.py`.
 - **OpenInference/Traceloop**: enable with `OPENINFERENCE_ENABLED=true` and configure URLs in `configs/observability.yaml`.
