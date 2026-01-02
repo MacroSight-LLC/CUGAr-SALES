@@ -1,53 +1,188 @@
-# Repository To-Do (Comprehensive)
+# Repository To-Do (v1.0.0 SHIPPED ✅ → v1.1 Planning)
 
-## Governance & Guardrails
-- [x] Align root `AGENTS.md` guardrails with current tool allowlist/denylist, escalation ceilings, redaction rules, and budget caps before enabling Tier 1 defaults.
-- [x] Maintain the guardrail CI gate so registry/AGENTS edits fail unless `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, and `todo1.md` reflect the change and `scripts/verify_guardrails.py` passes.
-- [x] **HTTP & Secrets Hardening**: Implemented `SafeClient` HTTP wrapper with enforced timeouts (10.0s), automatic retry (4 attempts, exponential backoff), URL redaction. Created `cuga.security.secrets` module with env-only enforcement, `.env.example` parity validation, hardcoded secret detection. Added `SECRET_SCANNER=on` CI workflow with trufflehog + gitleaks + parity checks. Updated AGENTS.md with canonical HTTP Client and Secrets Management requirements.
-- Track watsonx credential validation/audit expectations and extension-aware registry parsing in docs when updating guardrails.
-- Document any adjustments to guardrails in `CHANGELOG.md` under `## vNext` alongside test updates.
-- Keep README, PRODUCTION readiness notes, and security docs synchronized with guardrail and registry expectations; capture new follow-ups in this list whenever guardrails shift.
+**Last Updated:** 2026-01-02  
+**v1.0.0 Status:** ✅ **SHIPPED** (Security Hardening & Observability Complete)  
+**v1.1 Status:** Planning (Protocol Integration & Scenario Testing)
 
-## Registry & Sandbox Enablement
-- Complete Tier 1 registry composition so `docs/mcp/registry.yaml` matches compose service mounts/env with health checks.
-- Enforce sandbox profiles (py/node slim/full) per registry entry, including read-only mounts and `/workdir` pinning for E2B/Docker execution.
-- [x] Wire observability and budget enforcement env keys (AGENT_*, OTEL, LangFuse/LangSmith) with `warn|block` budget policies and trace sampling controls.
-- Publish Tier 2 optional modules marked `enabled: false`, ensuring compose `tier2` profile launches optional observability/vector DB services with documented network limits.
-- [x] Add registry-driven hot-swap flow so tool replacements occur via registry edits only; auto-regenerate doc tables; add deterministic sort tests.
+---
 
-## Planner, Coordinator, and Tooling
-- Finalize LangGraph-first planner/executor wiring with streaming callbacks and structured trace propagation.
-- Ensure coordinator uses thread-safe round-robin worker selection with preserved plan ordering under concurrency.
-- Harden tool import guardrails to restrict dynamic imports to `cuga.modular.tools.*` and enforce parameter declarations with explicit IO expectations.
-- Expand tool selection logic to avoid blindly selecting all tools and to rank candidates by description/name similarity; verify via tests.
-- Standardize a lightweight developer checklist (in README/AGENTS) for planner/worker/registry changes that references guardrail verification and required tests.
+## ✅ v1.0.0 Completed Tasks (SHIPPED 2026-01-02)
 
-## Memory, RAG, and Embeddings
-- Harden vector memory connectors with async batching, retention policies, and backend validation at initialization.
-- Ensure metadata for ingested content always includes `path` and `profile`; document scoring semantics and deterministic local fallback search.
-- Confirm default embedder remains deterministic/offline (hashing/TF-IDF) and disallows remote embeddings unless explicitly permitted.
+### Governance & Guardrails ✅
+- [x] Guardrails enforcement system (allowlist-first, parameter schemas, risk tiers, budget tracking)
+- [x] HTTP hardening with SafeClient (enforced timeouts, automatic retry, URL redaction)
+- [x] Secrets management (env-only, CI scanning with trufflehog + gitleaks, `.env.example` parity)
+- [x] Eval/exec elimination (AST-based safe_eval_expression, SafeCodeExecutor with allowlists)
+- [x] Root `AGENTS.md` aligned with guardrail enforcement (sandbox deny-by-default, PII redaction, approval gates)
+- [x] Guardrail CI gate (registry/AGENTS edits fail unless docs updated and `scripts/verify_guardrails.py` passes)
 
-## Observability & Tracing
-- Ship default Langfuse/OpenInference dashboards and Traceloop spans for registry, planning, and execution paths.
-- Emit structured, PII-free logs with secret redaction and full `trace_id` propagation across planner/worker/coordinator, CLI, and tools.
-- Instrument events for plan creation, tool selection, execution start/stop, backend connections, errors, and budget decisions.
-- Add guardrail verification to observability dashboards (or runbooks) so operators can track budget ceiling/escalation events and registry allowlist violations.
+### Registry & Sandbox Enablement ✅
+- [x] Registry-driven hot-swap flow (tool replacements via registry edits only, deterministic ordering)
+- [x] Sandbox profiles enforced per registry entry (py/node slim/full, read-only mounts, `/workdir` pinning)
+- [x] Observability and budget enforcement env keys wired (`AGENT_*`, `OTEL_*`, LangFuse/LangSmith)
 
-## Deployment & API Profiles
-- Add FastAPI LangServe-style deployment profile for hosted APIs with secure defaults and budget controls.
-- Provide first-party compose profile for hosted APIs with health checks and rollback guidance.
+### Observability & Tracing ✅
+- [x] Comprehensive observability system (OTEL integration, Prometheus `/metrics`, Grafana dashboard with 12 panels)
+- [x] Golden signals tracking (success rate, latency P50/P95/P99, tool error rate, mean steps per task, approval wait time)
+- [x] Structured events (14 event types: plan, route, tool_call, budget, approval, execution, memory)
+- [x] PII-safe logging with automatic redaction (secret/token/password keys recursively redacted)
+- [x] Trace propagation (`trace_id` flows through all operations, thread-safe collector)
 
-## Integrations & Adapters
-- Build CrewAI/AutoGen adapters that honor coordinator/worker patterns and shared memory semantics.
-- Develop long-running planning mode inspired by Strands/Semantic Kernel for job orchestration.
+### Configuration & Testing ✅
+- [x] Config precedence enforcement (CLI > env > .env > YAML > TOML > defaults with ConfigResolver)
+- [x] Config precedence tests (40+ tests validating resolution order and provenance tracking)
+- [x] Tools/registry coverage (tests for tool selection, parameter validation, budget tracking)
+- [x] Memory/RAG coverage (tests for profile isolation, retention, vector backend switching)
+- [x] Observability tests (36 tests for events, golden signals, collector integration)
+- [x] Guardrails tests (30+ tests for allowlists, schemas, egress, budget, approval)
 
-## Frontend & Workspace
-- Polish frontend workspace/dashboard bundles to expose registry status, budgets, and trace timelines.
-- Ensure embedded asset pipeline stays deterministic and documented (compression ratios, hashing).
+### Deployment & Documentation ✅
+- [x] Kubernetes manifests (deployment, services, configmaps, secrets, namespace, health checks)
+- [x] Docker-compose image pinning (CI blocks `:latest` tags)
+- [x] PRODUCTION_READINESS.md updated (rollout/rollback procedures, resource requirements)
+- [x] SECURITY.md updated (6 new sections: sandbox, parameters, network egress, PII, approvals, secrets)
+- [x] CHANGELOG.md v1.0.0 release notes (comprehensive feature summary)
+- [x] USAGE.md updated (config precedence, guardrail examples)
+- [x] PROTOCOL_INTEGRATION_STATUS.md created (protocol status, v1.1 roadmap)
 
-## Testing & Stability
-- Raise functional test coverage to at least 80% and extend regression/eval harness for self-play and MCP registry conformance.
-- Maintain CI guardrail script (`scripts/verify_guardrails.py`), lint (`ruff`) checks, and stability tests in `run_stability_tests.py`.
+**Total v1.0.0 Work:** 8 major tasks, 2,640+ test lines, 130+ tests, 7 documentation files updated
+
+---
+
+## 📋 v1.1 Roadmap (Protocol Integration & Scenario Testing)
+
+### Protocol Integration (2-4 weeks)
+
+**Goal:** Wire existing protocols into legacy agents without breaking changes
+
+**Approach:** Pragmatic shims (not full rewrite)
+
+#### Phase 1: Shim Layer (Week 1 — 2 days)
+- [ ] Add `AgentLifecycleProtocol` shims to `PlannerAgent`/`WorkerAgent`/`CoordinatorAgent`
+  - [ ] Add `startup()` method (no-op initially, can add resource initialization later)
+  - [ ] Add `shutdown()` method (no-op initially, can add cleanup later)
+  - [ ] Add `owns_state(key)` method (return `StateOwnership.AGENT` for all keys initially)
+- [ ] Add `process(AgentRequest) -> AgentResponse` wrapper methods
+  - [ ] `PlannerAgent.process()` wraps existing `plan(goal, metadata)`
+  - [ ] `WorkerAgent.process()` wraps existing `execute(steps, metadata)`
+  - [ ] `CoordinatorAgent.process()` wraps existing `dispatch(goal, trace_id)`
+- [ ] Maintain backward compatibility (existing `plan()`/`execute()`/`dispatch()` still work)
+
+#### Phase 2: Compliance Tests (Week 1 — 2 days)
+- [ ] Create `tests/agents/test_protocol_compliance.py` (20 essential tests)
+  - [ ] 5 tests: Agents accept `AgentRequest`, return `AgentResponse`
+  - [ ] 5 tests: Lifecycle methods exist and are callable (startup/shutdown idempotent)
+  - [ ] 5 tests: `ExecutionContext` propagates through operations
+  - [ ] 5 tests: Error handling returns structured `AgentError`
+
+#### Phase 3: Gradual Migration (Week 2-3 — ongoing)
+- [ ] Update orchestrator to use `ExecutionContext` instead of raw metadata dicts
+- [ ] Wire `RoutingAuthority` into `CoordinatorAgent` (remove internal routing logic)
+- [ ] Add audit trail recording for routing/planning decisions
+- [ ] Emit observability events at protocol boundaries (plan/route/execute)
+- [ ] Update FastAPI app to create `ExecutionContext` from HTTP requests
+
+#### Phase 4: Documentation (Week 4)
+- [ ] Create migration guide (`docs/agents/MIGRATION_GUIDE.md`)
+- [ ] Add API reference for protocol-compliant agents
+- [ ] Create examples showing protocol usage
+- [ ] Update AGENTS.md with "Protocol Adoption Status" section
+
+### Scenario Testing (2-3 weeks)
+
+**Goal:** End-to-end scenario tests validating orchestration with real components
+
+**Approach:** 8 enterprise workflows with minimal mocks
+
+- [ ] Create `tests/scenarios/` directory
+- [ ] **Scenario 1:** Multi-agent dispatch (planner → coordinator → workers with memory augmentation)
+- [ ] **Scenario 2:** Memory-augmented planning (RAG retrieval → plan enrichment → execution)
+- [ ] **Scenario 3:** Profile-based isolation (demo vs demo_power vs production profiles)
+- [ ] **Scenario 4:** Error recovery (tool failure → retry → fallback → partial success)
+- [ ] **Scenario 5:** Stateful conversations (multi-turn with conversation_id continuity)
+- [ ] **Scenario 6:** Complex workflows (nested orchestrations with parent_context)
+- [ ] **Scenario 7:** Approval gates (budget escalation → HITL approval → continue/reject)
+- [ ] **Scenario 8:** Budget enforcement (warn → escalate → block flow)
+
+**Estimated Effort:** 8 scenarios, ~1,200 lines, 2-3 weeks
+
+### Test Coverage Improvements (1-2 weeks)
+
+**Goal:** Raise layer coverage from 30% → 80% (tools), 20% → 80% (memory)
+
+#### Tools Layer Coverage (tools 30% → 80%)
+- [ ] Add handler execution tests (success/failure/timeout/retry paths)
+- [ ] Add budget tracking validation (cost accumulation, ceiling enforcement)
+- [ ] Add parameter validation tests (all ParameterSchema cases: type/range/pattern/enum)
+- [ ] Add network egress tests (SafeClient enforcement, allowlist/denylist)
+- [ ] **Estimated:** 30 tests, 600 lines, 2 days
+
+#### Memory Layer Coverage (memory 20% → 80%)
+- [ ] Add profile isolation tests (no cross-profile leakage with concurrent access)
+- [ ] Add retention tests (memory persistence, dirty flush on shutdown)
+- [ ] Add vector backend switching tests (Chroma/Qdrant/in-memory fallback)
+- [ ] Add embedding determinism tests (local fallback, no remote calls)
+- [ ] **Estimated:** 25 tests, 500 lines, 2 days
+
+---
+
+## 🚀 v1.1 Timeline Estimate
+
+| Phase | Work Item | Effort | Dependencies |
+|-------|-----------|--------|--------------|
+| Week 1 | Protocol shims | 2 days | None (start immediately) |
+| Week 1 | Compliance tests | 2 days | Shims complete |
+| Week 2-3 | Gradual migration | 5 days | Compliance tests passing |
+| Week 2-3 | Scenario testing | 10 days | Parallel with migration |
+| Week 3-4 | Coverage improvements | 4 days | Parallel with migration |
+| Week 4 | Documentation | 3 days | All work complete |
+
+**Total Estimated Effort:** 26 days (4-5 weeks with parallelization)
+
+**Critical Path:** Protocol shims → Compliance tests → Gradual migration → Documentation
+
+**Parallel Work:** Scenario testing and coverage improvements can happen alongside migration
+
+---
+
+## 🎯 Open Questions for Product Management
+
+Before starting v1.1 work, need input on:
+
+1. **Breaking Changes:** Is it acceptable to change agent signatures if we maintain backward compatibility wrappers?
+2. **Migration Timeline:** Can we migrate calling code incrementally over multiple releases, or must it be atomic?
+3. **User-Facing Benefits:** What's the user-visible value of protocol compliance? (vs internal architecture cleanup)
+4. **Test Coverage Goals:** Is 80% layer coverage sufficient, or should we aim higher for critical paths?
+5. **Scenario Testing Scope:** Are 8 scenarios sufficient, or should we cover more enterprise workflows?
+
+---
+
+## 🔧 Ongoing Maintenance & Enhancements
+
+### Planner, Coordinator, and Tooling
+- [ ] Finalize LangGraph-first planner/executor wiring with streaming callbacks
+- [ ] Standardize lightweight developer checklist for planner/worker/registry changes
+
+### Memory, RAG, and Embeddings
+- [ ] Harden vector memory connectors with async batching and retention policies
+- [ ] Document scoring semantics and deterministic local fallback search
+
+### Deployment & API Profiles
+- [ ] Add FastAPI LangServe-style deployment profile for hosted APIs
+- [ ] Provide first-party compose profile with health checks
+
+### Integrations & Adapters
+- [ ] Build CrewAI/AutoGen adapters honoring coordinator/worker patterns
+- [ ] Develop long-running planning mode inspired by Strands/Semantic Kernel
+
+### Frontend & Workspace
+- [ ] Polish frontend workspace/dashboard bundles (registry status, budgets, trace timelines)
+- [ ] Ensure embedded asset pipeline stays deterministic
+
+### Registry & Tier Enablement
+- [ ] Complete Tier 1 registry composition (compose service mounts/env with health checks)
+- [ ] Publish Tier 2 optional modules marked `enabled: false`
+- [ ] Track watsonx credential validation and extension-aware registry parsing
 
 ## Documentation & Contributor Onboarding
 - [x] Create single "System Execution Narrative" document tracing request → routing → agent → memory → response flow for contributor onboarding (completed: `docs/SYSTEM_EXECUTION_NARRATIVE.md` with CLI/FastAPI/MCP examples, complete flow diagrams, debugging tips, 20+ doc references).

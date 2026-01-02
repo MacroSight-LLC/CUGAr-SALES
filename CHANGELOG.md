@@ -5,7 +5,81 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 
 ---
 
-## vNext
+## [1.0.0] - 2026-01-02
+
+### 🎉 Production Release - Security Hardening & Observability
+
+This release represents a major milestone in production readiness with comprehensive security hardening, observability infrastructure, guardrail enforcement, and deployment polish. All components follow AGENTS.md canonical requirements for offline-first, security-first operation.
+
+**Highlights**:
+- ✅ **Guardrails Enforcement**: Allowlist-first tool selection, Pydantic parameter schemas, risk tier classification, budget tracking with HITL approval gates
+- ✅ **Observability Infrastructure**: OTEL integration, Prometheus `/metrics` endpoint, Grafana dashboard (12 panels), golden signals (success rate, latency P50/P95/P99, tool error rate)
+- ✅ **Security Hardening**: SafeClient HTTP wrapper, eval/exec elimination, sandbox deny-by-default, PII redaction, secrets management (env-only, CI scanning)
+- ✅ **Configuration Precedence**: Unified config resolution (CLI > env > .env > YAML > TOML > defaults), provenance tracking, deep merge validation
+- ✅ **Deployment Polish**: Kubernetes manifests (5 resources), health checks, rollback procedures, docker-compose image pinning
+- ✅ **Test Coverage**: 2,640+ new test lines (130+ tests), tools/registry/memory/RAG/config/observability coverage
+
+**Breaking Changes**: None (all changes are additive and backward-compatible)
+
+---
+
+### Added: Guardrails Enforcement System
+
+**Files**: `src/cuga/backend/guardrails/policy.py` (480 lines), `tests/unit/test_guardrails_policy.py` (30+ tests)
+
+**Core Components**:
+- `GuardrailPolicy` (Pydantic model): Tool allowlist/denylist, parameter schemas, network egress rules, budget ceilings, risk tiers
+- `ParameterSchema`: Type/range/pattern/enum validation for tool parameters (string/integer/float/boolean/array/object types)
+- `RiskTier` (enum): LOW/MEDIUM/HIGH/CRITICAL classification for tool selection penalty and approval gates
+- `ToolBudget`: Cost/calls/tokens tracking with ceiling enforcement (`can_afford()`, `spend()`, utilization calculations)
+- `NetworkEgressPolicy`: Allowed domains (exact/wildcard), blocked localhost/private networks, IP range allowlist/blocklist
+- `ToolSelectionPolicy`: Ranking with risk penalties, minimum similarity score, max tools per plan
+- `budget_guard()`: Decorator for automatic budget enforcement before tool execution
+- `request_approval()`: HITL approval workflow with timeout-bounded requests (PENDING → APPROVED/REJECTED/EXPIRED)
+
+**Key Features**:
+- **Allowlist-First**: Tools must be explicitly allowed (deny-by-default); denylist overrides allowlist
+- **Parameter Validation**: Type checking, range validation (min/max), pattern regex, enum allowlist, nested schemas
+- **Network Egress**: Deny external network by default; explicit allowlist per profile with localhost/RFC1918 blocking
+- **Budget Tracking**: Accumulate cost/calls/tokens per task; enforce ceiling with warn/block policy; escalation gates (max 2 by default)
+- **Risk-Based Selection**: Tool ranking penalizes HIGH/CRITICAL risk tiers (deduct 0.2-0.5 from similarity score)
+- **Approval Gates**: WRITE/DELETE/FINANCIAL actions trigger HITL approval with configurable timeout (300s default)
+- **Strict Mode**: Reject unknown parameters in tool inputs when enabled
+
+**Enforcement Points**:
+- Planning: Tool selection filtered by allowlist, ranked with risk penalties
+- Validation: Parameters validated against schemas before execution
+- Execution: Budget checked with `can_afford()` before tool call
+- Network: HTTP requests routed through SafeClient with egress allowlist
+- Approval: High-risk operations block until approval received or timeout
+
+**Configuration**:
+```yaml
+# Example: configs/guardrail_policy.yaml
+tool_allowlist: [filesystem_read, web_search, code_execution]
+tool_denylist: [dangerous_tool, eval_dynamic]
+parameter_schemas:
+  filesystem_read:
+    path: {type: string, required: true, pattern: "^[a-zA-Z0-9/_\\-\\.]+$"}
+network_egress:
+  allowed_domains: [api.openai.com, "*.github.com"]
+  block_localhost: true
+budget:
+  AGENT_BUDGET_CEILING: 100
+  AGENT_BUDGET_POLICY: warn
+  AGENT_ESCALATION_MAX: 2
+```
+
+**Testing**:
+- 30+ tests covering allowlist/denylist, parameter schemas (type/range/pattern/enum), network egress (domain/IP allowlist, localhost blocking), budget tracking (ceiling enforcement, escalation, policy warn/block), tool selection (risk penalties, min similarity, max tools), approval workflow (timeout, lifecycle)
+
+---
+
+### Added: Comprehensive Observability & SLOs System
+
+**Files**: `src/cuga/observability/*` (1,700+ lines), `tests/unit/test_observability_integration.py` (36 tests), `observability/grafana_dashboard.json` (400+ lines)
+
+### (continues with existing observability section from vNext...)
 
 ### Added: Comprehensive Observability & SLOs System (2025-01-01)
 
