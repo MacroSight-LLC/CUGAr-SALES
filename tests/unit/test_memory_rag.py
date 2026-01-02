@@ -60,13 +60,22 @@ def sample_embeddings():
 
 @pytest.fixture
 def mock_vector_backend():
-    """Mock vector database backend."""
+    """Mock vector database backend with dimension validation."""
     class MockVectorBackend:
         def __init__(self):
             self.storage = {}
             self.queries = []
+            self.expected_dim = None  # Track expected embedding dimension
         
         def insert(self, profile: str, id: str, embedding: List[float], metadata: Dict[str, Any]):
+            # Dimension validation: enforce consistent dimensions
+            if self.expected_dim is None:
+                self.expected_dim = len(embedding)
+            elif len(embedding) != self.expected_dim:
+                raise ValueError(
+                    f"Embedding dimension mismatch: expected {self.expected_dim}, got {len(embedding)}"
+                )
+            
             if profile not in self.storage:
                 self.storage[profile] = {}
             self.storage[profile][id] = {
@@ -79,17 +88,29 @@ def mock_vector_backend():
             if profile not in self.storage:
                 return []
             
-            # Simple similarity (dot product)
+            # Cosine similarity (normalized dot product for better ranking)
             results = []
+            query_norm = sum(x * x for x in embedding) ** 0.5
+            if query_norm == 0:
+                query_norm = 1.0  # Avoid division by zero
+            
             for id, data in self.storage[profile].items():
-                similarity = sum(a * b for a, b in zip(embedding, data["embedding"]))
+                stored_embedding = data["embedding"]
+                stored_norm = sum(x * x for x in stored_embedding) ** 0.5
+                if stored_norm == 0:
+                    stored_norm = 1.0
+                
+                # Cosine similarity
+                dot_product = sum(a * b for a, b in zip(embedding, stored_embedding))
+                similarity = dot_product / (query_norm * stored_norm)
+                
                 results.append({
                     "id": id,
                     "similarity": similarity,
                     "metadata": data["metadata"],
                 })
             
-            # Sort by similarity and return top_k
+            # Sort by similarity (descending) and return top_k
             results.sort(key=lambda x: x["similarity"], reverse=True)
             return results[:top_k]
         
@@ -158,22 +179,34 @@ class TestDataIntegrity:
         
         assert results[0]["metadata"] == metadata
 
-    def test_embedding_dimensions_validated(self):
+    def test_embedding_dimensions_validated(self, mock_vector_backend):
         """Embeddings should have consistent dimensions."""
-        embeddings = [
-            [0.1, 0.2, 0.3],  # 3D
-            [0.1, 0.2, 0.3],  # 3D (valid)
-            [0.1, 0.2],  # 2D (invalid)
-        ]
+        backend = mock_vector_backend
         
-        # All embeddings should have same dimension
-        expected_dim = len(embeddings[0])
+        # Insert first embedding (establishes dimension)
+        backend.insert(
+            profile="test",
+            id="emb_1",
+            embedding=[0.1, 0.2, 0.3],  # 3D
+            metadata={"test": "first"},
+        )
         
-        for emb in embeddings:
-            # Validate dimension
-            if len(emb) != expected_dim:
-                # Should raise error or reject
-                assert False, f"Dimension mismatch: expected {expected_dim}, got {len(emb)}"
+        # Insert second embedding with same dimension (should succeed)
+        backend.insert(
+            profile="test",
+            id="emb_2",
+            embedding=[0.1, 0.2, 0.3],  # 3D (valid)
+            metadata={"test": "second"},
+        )
+        
+        # Insert third embedding with different dimension (should fail)
+        with pytest.raises(ValueError, match="Embedding dimension mismatch"):
+            backend.insert(
+                profile="test",
+                id="emb_3",
+                embedding=[0.1, 0.2],  # 2D (invalid)
+                metadata={"test": "third"},
+            )
 
     def test_duplicate_ids_rejected(self, mock_vector_backend):
         """Duplicate embedding IDs should be rejected or overwrite."""
