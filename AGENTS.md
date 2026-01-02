@@ -50,7 +50,7 @@
 - **Audit Trail (Canonical)**: All routing and planning decisions MUST be recorded to persistent `AuditTrail` with decision reasoning, alternatives considered, and timestamps. Audit backends (JSON/SQLite) MUST support trace-based queries. No decision without audit record. See `docs/orchestrator/PLANNING_AUTHORITY.md`.
 - **Failure Modes (Canonical)**: All failures MUST be categorized using `FailureMode` (agent/system/resource/policy/user errors) with clear retryable/terminal/partial-success semantics. Orchestrators delegate retry decisions to `RetryPolicy` implementations (ExponentialBackoff/Linear/NoRetry). Partial results MUST be preserved and recoverable. See `docs/orchestrator/FAILURE_MODES.md`.
 - Thread-safe round-robin worker selection with preserved plan ordering and trace propagation across planner/worker/coordinator.
-- Orchestrators delegate to ToolRegistry (tool resolution), PolicyEnforcer (validation), VectorMemory (memory), BaseEmitter (observability), **RoutingAuthority** (routing decisions), **PlanningAuthority** (plan creation), **AuditTrail** (decision recording), and **RetryPolicy** (retry logic) — MUST NOT directly call tool handlers, enforce policies, make routing decisions, create plans, or implement custom retry logic.
+- Orchestrators delegate to ToolRegistry (tool resolution), PolicyEnforcer (validation), VectorMemory (memory), ObservabilityCollector (observability via `get_collector()`), **RoutingAuthority** (routing decisions), **PlanningAuthority** (plan creation), **AuditTrail** (decision recording), and **RetryPolicy** (retry logic) — MUST NOT directly call tool handlers, enforce policies, make routing decisions, create plans, or implement custom retry logic.
 
 ## Configuration Policy
 - **Precedence Layers (Canonical)**: All configuration MUST follow explicit precedence order: CLI args > env vars > .env files > YAML configs > TOML configs > configuration defaults > hardcoded defaults. Unified ConfigResolver enforces precedence, deep merge for dicts, override for lists/scalars, and provenance tracking (which layer provided which value). No ad-hoc config reads bypassing resolver. See `docs/configuration/CONFIG_RESOLUTION.md`.
@@ -133,7 +133,28 @@
 
 ---
 
-## 9. v1.1 Agent Integration Routing (DEFERRED FROM v1.0.0)
+## 9. v1.1 Agent Integration (COMPLETED in v1.1.0 - 2026-01-02)
 
-**v1.0.0 Infrastructure Release:** Observability and guardrail infrastructure is production-ready, but legacy modular agents (`src/cuga/modular/agents.py`) are NOT integrated. See `docs/AGENTS.md` section 9 and `CHANGELOG.md` "v1.1 Roadmap" for detailed implementation routing, code examples, test requirements, and rollout strategy. Estimated effort: 2-4 days.
+**v1.1.0 Release Status:** ✅ **COMPLETE** - All modular agents (`src/cuga/modular/agents.py`) are now fully integrated with observability and guardrails infrastructure.
+
+### What Was Delivered
+
+- ✅ **PlannerAgent Observability**: Emits `plan_created` events with metadata (goal, steps_count, tools_selected, duration_ms, profile)
+- ✅ **WorkerAgent Observability**: Emits `tool_call_start`, `tool_call_complete`, `tool_call_error` events for all tool executions
+- ✅ **WorkerAgent Guardrails**: Enforces budget constraints with `budget_guard()`, emits `budget_exceeded` events
+- ✅ **CoordinatorAgent Observability**: Emits `route_decision` events with routing metadata
+- ✅ **Integration Tests**: 11 comprehensive tests (26/26 total tests passing - 100%)
+- ✅ **Documentation**: Complete agent integration guide at `docs/observability/AGENT_INTEGRATION.md`
+
+### Deprecation Notice
+
+**Legacy observability patterns are deprecated as of v1.1.0 and will be removed in v1.3.0:**
+
+- `BaseEmitter` (use `cuga.observability.emit_event()` instead)
+- `InMemoryTracer` (use `cuga.observability.get_collector()` instead)
+- `WorkerAgent.observability` parameter (events now automatically emitted)
+
+**Migration guide:** See `docs/observability/AGENT_INTEGRATION.md` for complete migration instructions and examples.
+
+**Backward Compatibility:** All legacy patterns emit deprecation warnings but remain functional until v1.3.0 removal.
 

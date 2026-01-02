@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import threading
 import time
+import warnings
 from dataclasses import dataclass, field
 from typing import Any, Iterable, List, Optional
 
 from .config import AgentConfig
 from .llm.interface import LLM, MockLLM
 from .memory import VectorMemory
-from .observability import BaseEmitter  # Deprecated, kept for backward compatibility
 from .tools import ToolRegistry, ToolSpec
 
-# New observability infrastructure
+# Observability infrastructure (v1.1.0+)
 from cuga.observability import (
     PlanEvent,
     RouteEvent,
@@ -20,6 +20,14 @@ from cuga.observability import (
     emit_event,
     get_collector,
 )
+
+# Legacy imports (deprecated in v1.1.0, will be removed in v1.3.0)
+try:
+    from .observability import BaseEmitter
+    _LEGACY_OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    BaseEmitter = None  # type: ignore
+    _LEGACY_OBSERVABILITY_AVAILABLE = False
 
 # Guardrails infrastructure (optional - only use if available)
 try:
@@ -138,8 +146,19 @@ class PlannerAgent:
 class WorkerAgent:
     registry: ToolRegistry
     memory: VectorMemory
-    observability: Optional[BaseEmitter] = None  # Deprecated, kept for backward compatibility
+    observability: Optional[Any] = None  # Legacy BaseEmitter (deprecated in v1.1.0, removed in v1.3.0)
     guardrail_policy: Optional[Any] = None  # GuardrailPolicy if guardrails enabled
+
+    def __post_init__(self):
+        """Emit deprecation warning if legacy observability is used."""
+        if self.observability is not None:
+            warnings.warn(
+                "WorkerAgent.observability (BaseEmitter) is deprecated as of v1.1.0 and will be "
+                "removed in v1.3.0. All events are now automatically emitted via "
+                "cuga.observability.emit_event(). Remove the 'observability' parameter.",
+                DeprecationWarning,
+                stacklevel=2
+            )
 
     def execute(self, steps: Iterable[dict], metadata: Optional[dict] = None) -> AgentResult:
         """Execute steps with observability and optional guardrail enforcement."""
@@ -277,11 +296,23 @@ class WorkerAgent:
                 # Re-raise the tool error
                 raise tool_error
             
-            # Legacy observability (deprecated)
+            # Legacy observability (deprecated in v1.1.0, will be removed in v1.3.0)
+            # Note: This is redundant - events are already emitted above via emit_event()
             if self.observability:
-                self.observability.emit(
-                    {"event": "tool", "name": tool_name, "profile": profile, "trace_id": trace_id}
+                warnings.warn(
+                    "BaseEmitter.emit() calls are deprecated and redundant. "
+                    "Events are automatically emitted via cuga.observability.emit_event(). "
+                    "This legacy path will be removed in v1.3.0.",
+                    DeprecationWarning,
+                    stacklevel=2
                 )
+                try:
+                    self.observability.emit(
+                        {"event": "tool", "name": tool_name, "profile": profile, "trace_id": trace_id}
+                    )
+                except Exception as e:
+                    # Don't fail on legacy observability errors
+                    print(f"Warning: Legacy observability emit failed: {e}")
         
         # Store output in memory
         self.memory.remember(str(output), metadata={"profile": profile, "trace_id": trace_id})
