@@ -130,3 +130,10 @@
 - Read this file first and confirm registry/sandbox edits follow the allowlist/denylist rules.
 - Keep docs (README, PRODUCTION readiness, security/policies) and `todo1.md` aligned with any guardrail or registry change.
 - Run `python scripts/verify_guardrails.py` and the stability harness before merging; add new tests when planner/worker/coordinator interfaces evolve.
+
+---
+
+## 9. v1.1 Agent Integration Routing (DEFERRED FROM v1.0.0)
+
+**v1.0.0 Infrastructure Release:** Observability and guardrail infrastructure is production-ready, but legacy modular agents (`src/cuga/modular/agents.py`) are NOT integrated. See `docs/AGENTS.md` section 9 and `CHANGELOG.md` "v1.1 Roadmap" for detailed implementation routing, code examples, test requirements, and rollout strategy. Estimated effort: 2-4 days.
+

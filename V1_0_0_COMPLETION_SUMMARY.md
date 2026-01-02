@@ -1,22 +1,78 @@
-# 🎉 v1.0.0 Completion Summary
+# 🎉 v1.0.0 Completion Summary - Infrastructure Release
 
 **Date:** 2026-01-02  
-**Status:** ✅ **SHIPPED AND PRODUCTION READY**
+**Status:** ✅ **SHIPPED - INFRASTRUCTURE PRODUCTION READY**  
+**Type:** Infrastructure-focused release (agent integration deferred to v1.1)
 
 ---
 
 ## Executive Summary
 
-The comprehensive security hardening and observability work (Tasks G through Z) is **COMPLETE** and shipped as **v1.0.0**. This represents a major production readiness milestone with:
+The comprehensive security hardening and observability work (Tasks G through Z) is **COMPLETE** and shipped as **v1.0.0 Infrastructure Release**. This represents a major production readiness milestone with:
 
 - ✅ **Security-first architecture** (sandbox deny-by-default, parameter validation, network egress control, eval/exec elimination)
-- ✅ **Production observability** (OTEL integration, Prometheus metrics, Grafana dashboards, golden signals)
-- ✅ **Guardrail enforcement** (allowlist-first tools, budget tracking, HITL approval gates, risk-based selection)
+- ✅ **Production observability infrastructure** (OTEL integration, Prometheus metrics, Grafana dashboards, golden signals)
+- ✅ **Guardrail enforcement system** (allowlist-first tools, budget tracking, HITL approval gates, risk-based selection)
 - ✅ **Deployment readiness** (Kubernetes manifests, health checks, rollback procedures, docker-compose pinning)
 - ✅ **Comprehensive testing** (2,640+ new test lines, 130+ tests across all layers)
 - ✅ **Complete documentation** (SECURITY.md, CHANGELOG.md, USAGE.md, protocol status)
 
-**Production Readiness:** 🟢 **READY FOR DEPLOYMENT**
+**Production Readiness:** 🟢 **INFRASTRUCTURE READY FOR DEPLOYMENT**  
+**Agent Integration:** 🟡 **DEFERRED TO v1.1** (2-week target)
+
+---
+
+## ⚠️ Known Limitations - v1.0.0 Infrastructure Release
+
+### What's Production-Ready ✅
+
+1. **FastAPI Backend Observability** (100% integrated):
+   - `/metrics` endpoint serving Prometheus format
+   - `ObservabilityCollector` with OTEL/Console exporters
+   - Environment-based configuration
+   - PII/URL redaction in logs
+
+2. **Guardrails Module** (100% integrated):
+   - Budget tracking emits `budget_warning`, `budget_exceeded` events
+   - Approval workflow emits `approval_requested`, `approval_received`, `approval_timeout` events
+   - Events flow to `ObservabilityCollector`
+
+3. **Infrastructure** (production-deployable):
+   - OTEL exporters, Grafana dashboard, Prometheus metrics
+   - Kubernetes manifests, health checks
+   - docker-compose with observability sidecar
+
+### What's Missing ⚠️
+
+**Modular Agents NOT Integrated** (`src/cuga/modular/agents.py`):
+- ❌ `PlannerAgent.plan()` does NOT emit events
+- ❌ `WorkerAgent.execute()` does NOT emit tool_call events
+- ❌ `CoordinatorAgent.dispatch()` does NOT emit route_decision events
+- ❌ Agents use legacy `InMemoryTracer` instead of `ObservabilityCollector`
+- ❌ No guardrail policy enforcement in agent execution paths
+
+**Impact:**
+- FastAPI `/metrics` works but shows **partial data** (backend+guardrails only, no agent-level metrics)
+- Agent execution runs "dark" (no plan/route/execute events)
+- Budget enforcement works in guardrails but **NOT enforced during agent tool calls**
+
+**Mitigation:**
+- Use backend-level observability (HTTP middleware)
+- Monitor guardrail events (which ARE emitted)
+- Log-based monitoring for agent operations until v1.1
+
+### v1.1 Integration Plan (2-Week Target)
+
+**See CHANGELOG.md "v1.1 Roadmap"** for detailed work items and file modification list.
+
+**Quick Summary:**
+1. Add `emit_event()` calls to PlannerAgent/WorkerAgent/CoordinatorAgent
+2. Wrap tool execution with `budget_guard()` decorator
+3. Replace `InMemoryTracer` with `get_collector()`
+4. Add integration tests validating event emission
+5. Update documentation
+
+**Estimated Effort:** 2-4 days (1-2 days integration + 1-2 days testing)
 
 ---
 

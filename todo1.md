@@ -1,8 +1,8 @@
-# Repository To-Do (v1.0.0 SHIPPED ✅ → v1.1 Planning)
+# Repository To-Do (v1.0.0 SHIPPED ✅ → v1.1 Integration)
 
 **Last Updated:** 2026-01-02  
-**v1.0.0 Status:** ✅ **SHIPPED** (Security Hardening & Observability Complete)  
-**v1.1 Status:** Planning (Protocol Integration & Scenario Testing)
+**v1.0.0 Status:** ✅ **SHIPPED** (Infrastructure Release - Observability & Guardrails Ready)  
+**v1.1 Status:** Planning (Agent Integration - 2-4 days)
 
 ---
 
@@ -27,6 +27,8 @@
 - [x] Structured events (14 event types: plan, route, tool_call, budget, approval, execution, memory)
 - [x] PII-safe logging with automatic redaction (secret/token/password keys recursively redacted)
 - [x] Trace propagation (`trace_id` flows through all operations, thread-safe collector)
+- [x] FastAPI backend `/metrics` endpoint wired (lines 92-100 in `src/cuga/backend/app.py`)
+- [x] Guardrails module emits budget/approval events (`src/cuga/backend/guardrails/policy.py`)
 
 ### Configuration & Testing ✅
 - [x] Config precedence enforcement (CLI > env > .env > YAML > TOML > defaults with ConfigResolver)
@@ -41,43 +43,132 @@
 - [x] Docker-compose image pinning (CI blocks `:latest` tags)
 - [x] PRODUCTION_READINESS.md updated (rollout/rollback procedures, resource requirements)
 - [x] SECURITY.md updated (6 new sections: sandbox, parameters, network egress, PII, approvals, secrets)
-- [x] CHANGELOG.md v1.0.0 release notes (comprehensive feature summary)
+- [x] CHANGELOG.md v1.0.0 release notes with **Known Limitations section** (infrastructure-first release)
 - [x] USAGE.md updated (config precedence, guardrail examples)
 - [x] PROTOCOL_INTEGRATION_STATUS.md created (protocol status, v1.1 roadmap)
+- [x] V1_0_0_COMPLETION_SUMMARY.md with infrastructure status and v1.1 routing
+- [x] AGENTS.md section 9 added with detailed v1.1 implementation routing
 
 **Total v1.0.0 Work:** 8 major tasks, 2,640+ test lines, 130+ tests, 7 documentation files updated
 
 ---
 
-## 📋 v1.1 Roadmap (Protocol Integration & Scenario Testing)
+## ⚠️ v1.0.0 Known Limitations (Documented)
+
+**What Works (Production-Ready):**
+- ✅ Observability infrastructure (collector, exporters, /metrics endpoint)
+- ✅ Guardrails emit events (budget/approval operations)
+- ✅ FastAPI backend integration
+- ✅ Deployment manifests
+
+**What's Missing (v1.1 Target):**
+- ❌ Modular agents (`src/cuga/modular/agents.py`) don't emit events
+- ❌ Agents use legacy `InMemoryTracer` instead of `ObservabilityCollector`
+- ❌ No guardrail enforcement in agent execution paths
+
+**Impact:** Infrastructure deployable, agents run "dark" (no plan/route/execute events in /metrics)
+
+**See:** `CHANGELOG.md` "Known Limitations" section for detailed analysis and mitigation strategies
+
+---
+
+## 📋 v1.1 Roadmap (Agent Integration - PRIORITY)
+
+### Goal: Wire Observability & Guardrails into Modular Agents
+
+**Target Timeline:** 2-4 days  
+**Estimated Effort:** 9-12 hours (1.5-2 days implementation + testing/docs)
+
+### Phase 1: Agent Observability Integration (Days 1-2)
+
+#### Task 1.1: Wire PlannerAgent (30 min)
+- [ ] Add `emit_event()` import to `src/cuga/modular/agents.py`
+- [ ] Emit `plan_created` event in `PlannerAgent.plan()` with step_count, tool_list
+- [ ] Test: Validate event emitted with correct metadata
+
+#### Task 1.2: Wire WorkerAgent (2-3 hours)
+- [ ] Add `emit_event()` and `get_collector()` imports
+- [ ] Add `GuardrailPolicy` parameter to `__init__()` (default policy if None)
+- [ ] Emit `tool_call_start` before each tool execution
+- [ ] Check `can_afford()` before tool call (emit `budget_exceeded` if blocked)
+- [ ] Validate parameters against `ParameterSchema` (raise ValidationError if invalid)
+- [ ] Emit `tool_call_complete` on success (include duration_ms)
+- [ ] Emit `tool_call_error` on failure (include error type)
+- [ ] Call `budget.spend()` after successful execution
+- [ ] Test: Validate events, budget enforcement, parameter validation
+
+#### Task 1.3: Wire CoordinatorAgent (30 min)
+- [ ] Add `emit_event()` import
+- [ ] Emit `route_decision` event in `dispatch()` with worker selection reasoning
+- [ ] Test: Validate event emitted with routing metadata
+
+#### Task 1.4: Replace InMemoryTracer (30 min)
+- [ ] Replace `InMemoryTracer` with `get_collector()` in all agent classes
+- [ ] Update imports (remove legacy tracer)
+- [ ] Test: Validate no import errors, agents work as before
+
+### Phase 2: Integration Testing (Day 2)
+
+#### Task 2.1: End-to-End Tests (3-4 hours)
+- [ ] Create `tests/integration/test_agent_observability.py` (~200 lines)
+- [ ] Test: Full plan execution emits events in correct order (plan → route → tool_call)
+- [ ] Test: Budget enforcement blocks tool calls when ceiling reached
+- [ ] Test: Parameter validation rejects invalid inputs
+- [ ] Test: `/metrics` endpoint includes agent-generated metrics
+- [ ] Test: Golden signals populated from real agent operations
+- [ ] Test: trace_id propagates through all events
+
+### Phase 3: Documentation (Day 3)
+
+#### Task 3.1: Write Agent Integration Guide (2-3 hours)
+- [ ] Create `docs/observability/AGENT_INTEGRATION.md` (~300 lines)
+- [ ] Code examples for each agent class (PlannerAgent, WorkerAgent, CoordinatorAgent)
+- [ ] Event types and expected metadata
+- [ ] Budget enforcement examples
+- [ ] Parameter validation examples
+- [ ] Troubleshooting guide
+
+#### Task 3.2: Update Existing Docs
+- [ ] Remove "Known Limitations" section from `CHANGELOG.md`
+- [ ] Add `## [1.1.0] - 2026-01-16` section to `CHANGELOG.md`
+- [ ] Update `docs/observability/OBSERVABILITY_SLOS.md` (remove v1.0.0 limitation notes)
+- [ ] Rename `V1_0_0_COMPLETION_SUMMARY.md` → `V1_1_0_COMPLETION_SUMMARY.md`
+- [ ] Update status from "Infrastructure Release" to "Full Integration"
+
+### Phase 4: Release (Day 3-4)
+
+#### Task 4.1: Validation
+- [ ] Run full test suite: `pytest tests/ -v`
+- [ ] Validate `/metrics` includes agent data
+- [ ] Check Grafana dashboard shows agent metrics
+- [ ] Verify golden signals populated
+
+#### Task 4.2: Merge & Tag
+- [ ] Create PR: `feature/v1.1-agent-observability`
+- [ ] Code review (focus on event emission, budget enforcement)
+- [ ] Merge to main
+- [ ] Tag v1.1.0
+- [ ] Update `README.md` badge: "v1.1.0 - Full Integration"
+
+---
+
+## 📖 v1.1 Detailed Implementation Reference
+
+**See:**
+- `CHANGELOG.md` "v1.1 Roadmap" section for complete code examples (PlannerAgent, WorkerAgent, CoordinatorAgent)
+- `docs/AGENTS.md` section 9 for detailed implementation routing
+- `AGENTS.md` section 9 for v1.1 integration summary
+
+**Critical Files:**
+- `src/cuga/modular/agents.py` (~100 lines changed)
+- `tests/integration/test_agent_observability.py` (NEW, ~200 lines)
+- `docs/observability/AGENT_INTEGRATION.md` (NEW, ~300 lines)
+
+---
+
+## 🔮 Future Work (v1.2+)
 
 ### Protocol Integration (2-4 weeks)
-
-**Goal:** Wire existing protocols into legacy agents without breaking changes
-
-**Approach:** Pragmatic shims (not full rewrite)
-
-#### Phase 1: Shim Layer (Week 1 — 2 days)
-- [ ] Add `AgentLifecycleProtocol` shims to `PlannerAgent`/`WorkerAgent`/`CoordinatorAgent`
-  - [ ] Add `startup()` method (no-op initially, can add resource initialization later)
-  - [ ] Add `shutdown()` method (no-op initially, can add cleanup later)
-  - [ ] Add `owns_state(key)` method (return `StateOwnership.AGENT` for all keys initially)
-- [ ] Add `process(AgentRequest) -> AgentResponse` wrapper methods
-  - [ ] `PlannerAgent.process()` wraps existing `plan(goal, metadata)`
-  - [ ] `WorkerAgent.process()` wraps existing `execute(steps, metadata)`
-  - [ ] `CoordinatorAgent.process()` wraps existing `dispatch(goal, trace_id)`
-- [ ] Maintain backward compatibility (existing `plan()`/`execute()`/`dispatch()` still work)
-
-#### Phase 2: Compliance Tests (Week 1 — 2 days)
-- [ ] Create `tests/agents/test_protocol_compliance.py` (20 essential tests)
-  - [ ] 5 tests: Agents accept `AgentRequest`, return `AgentResponse`
-  - [ ] 5 tests: Lifecycle methods exist and are callable (startup/shutdown idempotent)
-  - [ ] 5 tests: `ExecutionContext` propagates through operations
-  - [ ] 5 tests: Error handling returns structured `AgentError`
-
-#### Phase 3: Gradual Migration (Week 2-3 — ongoing)
-- [ ] Update orchestrator to use `ExecutionContext` instead of raw metadata dicts
-- [ ] Wire `RoutingAuthority` into `CoordinatorAgent` (remove internal routing logic)
 - [ ] Add audit trail recording for routing/planning decisions
 - [ ] Emit observability events at protocol boundaries (plan/route/execute)
 - [ ] Update FastAPI app to create `ExecutionContext` from HTTP requests

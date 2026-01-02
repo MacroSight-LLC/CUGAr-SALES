@@ -7,7 +7,7 @@ This changelog follows the guidance from [Keep a Changelog](https://keepachangel
 
 ## [1.0.0] - 2026-01-02
 
-### 🎉 Production Release - Security Hardening & Observability
+### 🎉 Production Release - Infrastructure Foundation (Security Hardening & Observability)
 
 This release represents a major milestone in production readiness with comprehensive security hardening, observability infrastructure, guardrail enforcement, and deployment polish. All components follow AGENTS.md canonical requirements for offline-first, security-first operation.
 
@@ -20,6 +20,102 @@ This release represents a major milestone in production readiness with comprehen
 - ✅ **Test Coverage**: 2,640+ new test lines (130+ tests), tools/registry/memory/RAG/config/observability coverage
 
 **Breaking Changes**: None (all changes are additive and backward-compatible)
+
+---
+
+### ⚠️ **KNOWN LIMITATIONS - v1.0.0 "Infrastructure Release"**
+
+**Status:** This is an **infrastructure-focused release**. Core observability and guardrail systems are production-ready, but integration into legacy modular agents is **DEFERRED TO v1.1** (target: 2-week patch window).
+
+#### What Works (Production-Ready) ✅
+
+1. **FastAPI Backend Observability** (100% integrated):
+   - ✅ `/metrics` endpoint serving Prometheus format (`app.py` lines 92-100)
+   - ✅ `ObservabilityCollector` initialized on startup with OTEL/Console exporters (`app.py` lines 34-58)
+   - ✅ Environment-based configuration (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_EXPORTER`)
+   - ✅ Auto-export, buffered events (default 1000), thread-safe collector
+   - ✅ PII redaction (secret/token/password keys), URL redaction in logs
+
+2. **Guardrails Integration** (100% integrated):
+   - ✅ `GuardrailPolicy` enforcement in `src/cuga/backend/guardrails/policy.py`
+   - ✅ Budget tracking with `budget_guard()` decorator emits `budget_warning`, `budget_exceeded` events
+   - ✅ Approval workflow `request_approval()` emits `approval_requested`, `approval_received`, `approval_timeout` events
+   - ✅ Events flow to `ObservabilityCollector` via `emit_event()`
+
+3. **Infrastructure Components** (production-deployable):
+   - ✅ OTEL exporters (OTLP, Jaeger, Zipkin, Console)
+   - ✅ Grafana dashboard (12 panels: success_rate, latency P50/P95/P99, tool_error_rate, mean_steps_per_task, approval_wait_time, budget_utilization, tool errors by type, request rate, event timeline)
+   - ✅ Golden signals tracking and Prometheus metrics export
+   - ✅ Kubernetes manifests with health checks
+   - ✅ docker-compose with observability sidecar
+
+#### What's Missing (v1.1 Target) ⚠️
+
+**Modular Agents NOT Integrated** (`src/cuga/modular/agents.py`):
+- ❌ `PlannerAgent.plan()` does **NOT** emit `plan_created` event
+- ❌ `WorkerAgent.execute()` does **NOT** emit `tool_call_start`, `tool_call_complete`, `tool_call_error` events
+- ❌ `CoordinatorAgent.dispatch()` does **NOT** emit `route_decision` event
+- ❌ Agents use legacy `InMemoryTracer` instead of `get_collector()` from `cuga.observability`
+- ❌ No guardrail policy enforcement in agent execution paths (no `GuardrailPolicy` checks, no `budget_guard` decoration)
+
+**Impact:**
+- FastAPI `/metrics` endpoint works and returns metrics for backend/guardrail operations
+- But: Plan execution, tool calls, and routing decisions by modular agents **run "dark"** (no events emitted)
+- Golden signals (success_rate, latency, tool_error_rate) are **partially populated** (only from guardrails/backend, not from agent execution)
+- Budget tracking works in guardrails module but **not enforced during agent tool calls**
+
+**Why Deferred:**
+This is a **pragmatic decision** to ship infrastructure first. Legacy agents (`src/cuga/modular/agents.py`) use ad-hoc signatures (`plan(goal, metadata)`, `execute(steps, metadata)`, `dispatch(goal, trace_id)`) that don't align with new protocols (`AgentLifecycleProtocol`, `AgentProtocol`, `OrchestratorProtocol`). Full integration requires protocol shim work (2-4 weeks) which is tracked separately.
+
+**Production Impact:**
+- ✅ Infrastructure is deployable, monitorable, and testable
+- ✅ FastAPI backend emits events and serves metrics
+- ✅ Guardrails emit budget/approval events
+- ⚠️ Agent execution lacks event emission (plan/route/execute operations not visible in traces)
+- ⚠️ `/metrics` output is partial (backend+guardrails only, no agent-level metrics)
+
+**Mitigation:**
+- Use backend-level observability (HTTP requests, errors, latency) via FastAPI middleware
+- Monitor guardrail events (budget warnings, approval requests) which ARE emitted
+- Log-based monitoring for agent operations until v1.1 integration
+
+#### v1.1 Roadmap (2-Week Target)
+
+**Goal:** Wire observability and guardrails into modular agent execution paths.
+
+**Work Items:**
+1. **Add observability to agents** (`src/cuga/modular/agents.py`):
+   - Import `get_collector()` and `emit_event()` from `cuga.observability`
+   - `PlannerAgent.plan()`: Emit `plan_created` event with step count, tool list
+   - `WorkerAgent.execute()`: Emit `tool_call_start` before tool execution, `tool_call_complete` or `tool_call_error` after
+   - `CoordinatorAgent.dispatch()`: Emit `route_decision` event with worker selection reasoning
+   - Replace `InMemoryTracer` with `get_collector()` singleton
+
+2. **Add guardrail enforcement to agents**:
+   - Import `GuardrailPolicy` and `budget_guard` from `cuga.backend.guardrails.policy`
+   - Wrap tool execution in `WorkerAgent.execute()` with `budget_guard()` decorator
+   - Validate tool parameters against `ParameterSchema` before execution
+   - Check `can_afford()` before each tool call
+
+3. **Integration tests** (new):
+   - Validate `plan_created` event emitted when `PlannerAgent.plan()` called
+   - Validate `tool_call_start`/`tool_call_complete` events during `WorkerAgent.execute()`
+   - Validate `/metrics` output includes agent-generated metrics
+   - Validate golden signals populated from real agent operations
+
+4. **Documentation updates**:
+   - Remove "Known Limitations" section from CHANGELOG.md
+   - Update observability integration guide with agent examples
+   - Update V1_0_0_COMPLETION_SUMMARY.md to V1_1_0_COMPLETION_SUMMARY.md
+
+**Estimated Effort:** 1-2 days for integration + 1-2 days for testing = **2-4 days total**
+
+**Files to Modify:**
+- `src/cuga/modular/agents.py` (~100 lines changed: imports, emit_event calls, budget_guard wrappers)
+- `tests/integration/test_agent_observability.py` (new file, ~200 lines)
+- `docs/observability/AGENT_INTEGRATION.md` (new file with examples)
+
+**See `docs/AGENTS.md` section "v1.1 Agent Integration Routing"** for detailed implementation guidance.
 
 ---
 

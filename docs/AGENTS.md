@@ -114,3 +114,31 @@ This file inherits the root `AGENTS.md` directives and mirrors guardrail expecta
 - Read this file first and confirm registry/sandbox edits follow the allowlist/denylist rules.
 - Keep docs (README, PRODUCTION readiness, security/policies) and `todo1.md` aligned with any guardrail or registry change.
 - Run `python scripts/verify_guardrails.py` and the stability harness before merging; add new tests when planner/worker/coordinator interfaces evolve.
+
+---
+
+## 9. v1.1 Agent Integration Routing (DEFERRED FROM v1.0.0)
+
+### Context: v1.0.0 Infrastructure Release
+
+**v1.0.0 Status:** Observability and guardrail **infrastructure is production-ready**, but legacy modular agents (`src/cuga/modular/agents.py`) are **NOT integrated**. This section provides detailed routing for the v1.1 integration work.
+
+**Infrastructure Complete (v1.0.0):** ObservabilityCollector with OTEL/Console exporters, FastAPI `/metrics` endpoint, GuardrailPolicy enforcement, Budget tracking with budget_guard decorator, Approval workflow, Event emission infrastructure (14 event types).
+
+**What's Missing (v1.1 Target):** Modular agents don't emit events, agents use legacy InMemoryTracer instead of ObservabilityCollector, no guardrail enforcement in agent execution paths.
+
+### v1.1 Integration Work Items
+
+**See CHANGELOG.md "v1.1 Roadmap" section for complete implementation details**, including:
+- Step-by-step code changes for PlannerAgent, WorkerAgent, CoordinatorAgent
+- Integration test requirements (~200 lines in `tests/integration/test_agent_observability.py`)
+- Documentation updates (new `docs/observability/AGENT_INTEGRATION.md`)
+- File modification inventory
+- Rollout strategy and success criteria
+
+**Critical Files to Modify:**
+- `src/cuga/modular/agents.py` (~100 lines changed)
+- `tests/integration/test_agent_observability.py` (NEW, ~200 lines)
+- `docs/observability/AGENT_INTEGRATION.md` (NEW, ~300 lines)
+
+**Estimated Effort:** 2-4 days (1-2 days integration + 1-2 days testing)

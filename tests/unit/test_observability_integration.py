@@ -38,8 +38,10 @@ def test_collector():
 
 
 @pytest.fixture
-def client():
-    """FastAPI test client."""
+def client(monkeypatch):
+    """FastAPI test client with required env vars."""
+    # Set required AGENT_TOKEN for budget_guard middleware
+    monkeypatch.setenv("AGENT_TOKEN", "test-token-12345")
     return TestClient(app)
 
 
@@ -203,7 +205,7 @@ class TestPrometheusMetrics:
     
     def test_metrics_endpoint_exists(self, client):
         """Test /metrics endpoint is accessible."""
-        response = client.get("/metrics")
+        response = client.get("/metrics", headers={"X-Token": "test-token-12345"})
         assert response.status_code == 200
         assert response.headers["content-type"] == "text/plain; charset=utf-8"
     
@@ -219,7 +221,7 @@ class TestPrometheusMetrics:
         )
         test_collector.emit_event(plan_event)
         
-        response = client.get("/metrics")
+        response = client.get("/metrics", headers={"X-Token": "test-token-12345"})
         content = response.text
         
         # Check required Prometheus headers
@@ -245,7 +247,7 @@ class TestPrometheusMetrics:
         test_collector.signals.record_tool_call_start("test_tool")
         test_collector.signals.record_tool_call_complete("test_tool", 100.0)
         
-        response = client.get("/metrics")
+        response = client.get("/metrics", headers={"X-Token": "test-token-12345"})
         content = response.text
         
         # Check values

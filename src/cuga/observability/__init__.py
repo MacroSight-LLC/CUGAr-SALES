@@ -47,7 +47,42 @@ from .events import (
 )
 from .golden_signals import GoldenSignals
 from .exporters import OTELExporter, ConsoleExporter, create_exporter
-from .collector import ObservabilityCollector
+from .collector import ObservabilityCollector, get_collector, set_collector, emit_event
+
+# Legacy support: Import from old observability.py module
+# TODO v1.1: Remove after migrating agents to use get_collector()
+try:
+    from cuga.observability_legacy import InMemoryTracer, propagate_trace
+except ImportError:
+    # Fallback: Try importing from parent observability.py
+    import sys
+    from pathlib import Path
+    parent_path = Path(__file__).parent.parent
+    sys.path.insert(0, str(parent_path))
+    from observability import InMemoryTracer, propagate_trace
+    sys.path.pop(0)
+
+__all__ = [
+    # New observability system (v1.0.0+)
+    "EventType",
+    "StructuredEvent",
+    "PlanEvent",
+    "RouteEvent",
+    "ToolCallEvent",
+    "BudgetEvent",
+    "ApprovalEvent",
+    "GoldenSignals",
+    "OTELExporter",
+    "ConsoleExporter",
+    "create_exporter",
+    "ObservabilityCollector",
+    "get_collector",
+    "set_collector",
+    "emit_event",
+    # Legacy support (deprecated, will be removed in v1.1)
+    "InMemoryTracer",
+    "propagate_trace",
+]
 
 __all__ = [
     # Event types
