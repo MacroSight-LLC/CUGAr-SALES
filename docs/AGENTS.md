@@ -1,144 +1,334 @@
+
 <div align="center">
   <img src="../image/CUGAr.png" alt="CUGAr Logo" width="400"/>
 </div>
 
-# AGENTS Documentation Canonical Mirror
+# AGENTS Documentation — Canonical Mirror
 
-> This file is the canonical source for guardrail instructions. The root `AGENTS.md` mirrors this content and points back here.
-
-This mirror stays synchronized with the root instructions; update both when changing guardrails.
-
-This file inherits the root `AGENTS.md` directives and mirrors guardrail expectations for all documentation changes. When updating guardrails, keep this file and the root version in sync.
-
-## Design Tenets
-- Security-first, offline-first defaults with strict allowlists/denylists and deterministic behavior across planner, worker, coordinator, and sandboxes.
-- Registry-driven control planes only; tool swaps and sandbox changes must land as `registry.yaml` diffs with deterministic ordering and audit traces.
-
-## Agent Roles & Interfaces
-- PlannerAgent accepts `(goal: str, metadata: dict)` and returns ordered steps with streaming-friendly traces.
-- WorkerAgent executes ordered steps against allowlisted tools and enforces tool schemas; CoordinatorAgent preserves trace ordering with thread-safe round-robin worker selection.
-- **OrchestratorProtocol** (Canonical): All orchestration logic MUST implement `cuga.orchestrator.OrchestratorProtocol` defining lifecycle stages (initialize/plan/route/execute/aggregate/complete), explicit routing decisions, structured error propagation with failure modes, and immutable execution context with trace_id continuity. See `docs/orchestrator/ORCHESTRATOR_CONTRACT.md`.
-- **AgentLifecycleProtocol** (Canonical): All agents MUST implement `cuga.agents.lifecycle.AgentLifecycleProtocol` defining startup/shutdown contracts (idempotent, timeout-bounded, error-safe), state ownership boundaries (AGENT/MEMORY/ORCHESTRATOR), and resource management guarantees. See `docs/agents/AGENT_LIFECYCLE.md` and `docs/agents/STATE_OWNERSHIP.md`.
-- **AgentProtocol (I/O Contract)** (Canonical): All agents MUST implement `process(AgentRequest) -> AgentResponse` for standardized inputs (goal, task, metadata, inputs, context, constraints) and outputs (status, result/error, trace, metadata). Eliminates special-casing in routing/orchestration. See `docs/agents/AGENT_IO_CONTRACT.md`.
-- **Failure Modes** (Canonical): All errors MUST be categorized using `FailureMode` taxonomy (AGENT/SYSTEM/RESOURCE/POLICY/USER), distinguishing retryable vs terminal failures and partial success states. Orchestrators MUST use `RetryPolicy` (exponential backoff/linear/none) for safe execution management. See `docs/orchestrator/FAILURE_MODES.md`.
-
-## Planning Protocol
-- LangGraph-first planning and streaming hooks; planners must not select all tools blindly and must rank by similarity/metadata.
-- Clamp `PLANNER_MAX_STEPS` to 1..50 with warnings on invalid input; `MODEL_TEMPERATURE` clamps to 0..2.
-
-## Tool Contract
-- Tools live under `cuga.modular.tools.*` only; signature `(inputs: Dict[str, Any], context: Dict[str, Any]) -> Any` with explicit schemas.
-- No `eval`/`exec`, no network unless profile allows, and parameters must be declared with IO expectations.
-
-## Memory & RAG
-- Deterministic/local embeddings by default; metadata must include `path` and `profile`; isolation per profile with no cross-profile leakage.
-
-## Agent Lifecycle & State Ownership
-- **Lifecycle States**: Agents transition UNINITIALIZED → INITIALIZING → READY → BUSY → SHUTTING_DOWN → TERMINATED with atomic, logged transitions.
-- **startup() Contract**: Must be idempotent, timeout-bounded, and atomic (rollback on error if `cleanup_on_error=True`); allocates resources, loads MEMORY state, initializes ephemeral AGENT state.
-- **shutdown() Contract**: MUST NOT raise exceptions (log errors internally), completes within timeout, discards AGENT state (ephemeral), persists MEMORY state (dirty flush), notifies ORCHESTRATOR.
-- **State Ownership Boundaries**:
-  - **AGENT**: Request-scoped ephemeral state (current_request, temp_data, _internal_*) — discarded on shutdown, read/write by agent only.
-  - **MEMORY**: Cross-request persistent state (user_history, embeddings, learned_facts) — survives restarts, agent read-only (write via `memory.update()`), memory system read/write.
-  - **ORCHESTRATOR**: Trace-scoped coordination state (trace_id, routing_context, parent_context) — managed by orchestrator, agent read-only.
-- **Violation Detection**: Agents MUST implement `owns_state(key) -> StateOwnership` and raise `StateViolationError` on mutation rule violations.
-- **Testing Requirements**: All agents MUST pass lifecycle compliance tests (startup idempotency, shutdown error-safety, state ownership boundaries, resource cleanup verification).
-
-## Orchestrator & Coordinator Policy
-- **Canonical Contract**: All orchestrators MUST implement `OrchestratorProtocol` with explicit lifecycle stages, deterministic routing decisions, structured error handling (fail-fast/retry/fallback/continue) with failure mode categorization, and immutable `ExecutionContext` with trace_id propagation.
-- **Routing Authority (Canonical)**: All routing decisions MUST go through `RoutingAuthority` interface. Orchestrators delegate agent/worker/tool selection to pluggable `RoutingPolicy` implementations (round-robin, capability-based, load-balanced, etc.). No routing bypass allowed—agents/FastAPI/LangGraph nodes MUST NOT contain internal routing logic. See `docs/orchestrator/ROUTING_AUTHORITY.md`.
-- **Planning Authority (Canonical)**: All planning decisions MUST go through `PlanningAuthority` interface with explicit Plan→Route→Execute state machine transitions. Plans MUST include `ToolBudget` tracking (cost/calls/tokens) with budget enforcement before execution. State transitions MUST be idempotent and validated. No implicit planning in orchestrators. See `docs/orchestrator/PLANNING_AUTHORITY.md`.
-- **Audit Trail (Canonical)**: All routing and planning decisions MUST be recorded to persistent `AuditTrail` with decision reasoning, alternatives considered, and timestamps. Audit backends (JSON/SQLite) MUST support trace-based queries. No decision without audit record. See `docs/orchestrator/PLANNING_AUTHORITY.md`.
-- **Failure Modes (Canonical)**: All failures MUST be categorized using `FailureMode` (agent/system/resource/policy/user errors) with clear retryable/terminal/partial-success semantics. Orchestrators delegate retry decisions to `RetryPolicy` implementations (ExponentialBackoff/Linear/NoRetry). Partial results MUST be preserved and recoverable. See `docs/orchestrator/FAILURE_MODES.md`.
-- Thread-safe round-robin worker selection with preserved plan ordering and trace propagation across planner/worker/coordinator.
-- Orchestrators delegate to ToolRegistry (tool resolution), PolicyEnforcer (validation), VectorMemory (memory), BaseEmitter (observability), **RoutingAuthority** (routing decisions), **PlanningAuthority** (plan creation), **AuditTrail** (decision recording), and **RetryPolicy** (retry logic) — MUST NOT directly call tool handlers, enforce policies, make routing decisions, create plans, or implement custom retry logic.
-
-## Configuration Policy
-- Env allowlist: `AGENT_*`, `OTEL_*`, `LANGFUSE_*`, `OPENINFERENCE_*`, `TRACELOOP_*`; budget ceilings default 100 with escalation max 2 and `warn|block` budget policy.
-- Sandbox profiles (`py/node slim|full`, `orchestrator`) must be declared per registry entry with `/workdir` pinning for exec scopes and read-only defaults.
-
-## Observability & Tracing
-- Structured, PII-safe logs with redaction for `secret`, `token`, `password` keys; `trace_id` propagates through CLI, planner, worker, coordinator, and tools.
-- Emit spans for plan creation, tool selection, execution start/stop, backend calls, registry/budget decisions; default OTEL/LangFuse/LangSmith hooks from env.
-
-## Testing Invariants
-- Tests cover import guardrails (reject non-`cuga.modular.tools.*`), planner ranking, round-robin scheduling, env parsing clamps, registry determinism, and sandbox profile enforcement.
-- Run `python scripts/verify_guardrails.py --base <ref>` plus stability harness before merging guardrail or registry changes.
-
-## Change Management
-- Guardrail/registry updates require synced docs (`README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, `todo1.md`) and migration notes; update `AGENTS.md` first.
-- Developer checklist: document registry edits, budget/observability env wiring, sandbox mounts, and add/refresh tests plus `docs/mcp/tiers.md` table regeneration.
-
-## 1. Scope & Precedence
-- Root guardrails are canonical for all subdirectories; add directory-specific `AGENTS.md` only to tighten rules, never to relax them.
-- Allowlisted tools live under `cuga.modular.tools.*`; any denylisted or unknown module import MUST be rejected before execution.
-- Tier 1 defaults are enabled only when allowlists/denylists, escalation ceilings, secret redaction, and budget caps are present and in sync with the registry.
-- Registry edits are the sole mechanism for tool swaps; hot swaps MUST go through registry.yaml diffs with deterministic ordering.
-- PlannerAgent accepts `(goal: str, metadata: dict)` and returns an ordered plan with streaming-friendly traces; WorkerAgent executes ordered steps; CoordinatorAgent preserves trace ordering with thread-safe round-robin worker selection.
-
-## 2. Profile Isolation
-- MUST run deterministically offline; avoid network after setup; mock/record external calls.
-- MUST prioritize security-first designs: least privilege, sanitized inputs, no `eval`/`exec`.
-- MUST keep memory/profile data isolated per profile; no cross-profile leakage; default profile falls back to `memory.profile` when unspecified.
-
-## 3. Registry Hygiene
-- Registry entries MUST declare sandbox profile (`py/node slim|full`, `orchestrator`), read-only mounts, and `/workdir` pinning for exec sandboxes.
-- Compose mounts/env for Tier 1 entries MUST match `docs/mcp/registry.yaml` and include health checks; Tier 2 entries default to `enabled: false`.
-- Env keys MUST wire observability (`OTEL_*`, LangFuse/LangSmith) and budget enforcement (`AGENT_*`) with `warn|block` policies spelled out.
-  Current policy: allowlist `cuga.modular.tools.*` only; denylist any external module imports; env allowlist `AGENT_*`, `OTEL_*`, `LANGFUSE_*`, `OPENINFERENCE_*`, `TRACELOOP_*`. Budget ceilings default `AGENT_BUDGET_CEILING=100`, escalation max `AGENT_ESCALATION_MAX=2`, and redaction removes values matching `secret`, `token`, or `password` keys before logging.
-
-## 4. Sandbox Expectations
-- Tool handler signature: `(inputs: Dict[str, Any], context: Dict[str, Any]) -> Any`; context includes `profile`, `trace_id`.
-- Dynamic imports MUST be restricted to `cuga.modular.tools.*`; reject relative/absolute paths outside this namespace and denylisted modules.
-- Tools MUST declare parameters/IO expectations; MUST NOT perform network I/O unless explicitly allowed by profile; honor budget ceilings and redaction rules for outputs/logs.
-- Forbidden: `eval`/`exec`, writing outside sandbox, spawning daemons, or swallowing errors silently; read-only mounts are the default.
-
-## 5. Audit / Trace Semantics
-- Logs MUST be structured (JSON-friendly) and omit PII; redact secrets before emission; include reason when budgets trigger warn/block decisions.
-- `trace_id` MUST propagate across planner/worker/coordinator, CLI, and tools with ordered plan traces preserved under concurrency.
-- Emit events for plan creation, tool selection, execution start/stop, backend connections, errors, and budget/registry decisions.
-
-## 6. Documentation Update Rules
-- Config changes MUST update tests and docs in the same PR; env parsing MUST clamp `PLANNER_MAX_STEPS` to 1..50 and `MODEL_TEMPERATURE` to 0..2 with warnings on invalid values.
-- Edit `AGENTS.md` first when modifying guardrails; update `CHANGELOG.md` (`## vNext`) with summary and keep migration notes current for breaking changes.
-- Document registry and sandbox guardrail adjustments in `CHANGELOG.md` alongside updated tests.
-- Keep contributor-facing docs synchronized with guardrail expectations: refresh README/PRODUCTION readiness notes and the repo to-do tracker (`todo1.md`) when altering registry allowlists, budgets, or redaction policies. Guardrail/registry diffs now fail CI unless `README.md`, `PRODUCTION_READINESS.md`, `CHANGELOG.md`, and `todo1.md` are updated in the same PR and `scripts/verify_guardrails.py --base <ref>` passes locally.
-
-## 7. Verification & No Conflicting Guardrails
-- Tests MUST assert planner does not return all tools blindly; vector scores correlate with similarity and are ordered.
-- Round-robin coordinator scheduling MUST be verified under concurrent calls; planner/worker/coordinator interface guardrails MUST be covered by automated checks.
-- Import guardrails MUST be enforced (reject non-`cuga.modular.tools.*`); env parsing tests MUST cover invalid/edge values and fallback behavior.
-- Any change violating or adjusting guardrails MUST update this file plus corresponding tests in the same PR; non-root `AGENTS.md` MUST only declare inheritance, never canonical status.
-
-## 8. Contributor Checklist (TL;DR)
-- Read this file first and confirm registry/sandbox edits follow the allowlist/denylist rules.
-- Keep docs (README, PRODUCTION readiness, security/policies) and `todo1.md` aligned with any guardrail or registry change.
-- Run `python scripts/verify_guardrails.py` and the stability harness before merging; add new tests when planner/worker/coordinator interfaces evolve.
+> This file is the **canonical source** for guardrail instructions.  
+> The root `AGENTS.md` mirrors this content and MUST remain synchronized.
+>
+> When updating guardrails, **update this file first**, then mirror changes
+> to the root `AGENTS.md`.
 
 ---
 
-## 9. v1.1 Agent Integration Routing (DEFERRED FROM v1.0.0)
+## Guardrail Hierarchy & Inheritance
+- This file is canonical for all documentation and implementation guidance.
+- The root `AGENTS.md` mirrors this content for developer convenience.
+- Any nested `AGENTS.md` may only **tighten** rules and MUST explicitly inherit from this hierarchy.
+- No document may relax, override, or contradict canonical guardrails.
 
-### Context: v1.0.0 Infrastructure Release
+---
 
-**v1.0.0 Status:** Observability and guardrail **infrastructure is production-ready**, but legacy modular agents (`src/cuga/modular/agents.py`) are **NOT integrated**. This section provides detailed routing for the v1.1 integration work.
+## Design Tenets
+- Security-first, offline-first defaults with strict allowlists/denylists.
+- Deterministic behavior across planner, worker, coordinator, and sandboxes.
+- Registry-driven control planes only.
+- Tool swaps, sandbox changes, or vendor bindings MUST land as `registry.yaml` diffs with deterministic ordering and audit traces.
+- Human authority is preserved for all irreversible actions.
 
-**Infrastructure Complete (v1.0.0):** ObservabilityCollector with OTEL/Console exporters, FastAPI `/metrics` endpoint, GuardrailPolicy enforcement, Budget tracking with budget_guard decorator, Approval workflow, Event emission infrastructure (14 event types).
+---
 
-**What's Missing (v1.1 Target):** Modular agents don't emit events, agents use legacy InMemoryTracer instead of ObservabilityCollector, no guardrail enforcement in agent execution paths.
+## Capability-First Architecture (Canonical)
 
-### v1.1 Integration Work Items
+CUGAr systems MUST be designed **capability-first**, not vendor-first.
 
-**See CHANGELOG.md "v1.1 Roadmap" section for complete implementation details**, including:
-- Step-by-step code changes for PlannerAgent, WorkerAgent, CoordinatorAgent
-- Integration test requirements (~200 lines in `tests/integration/test_agent_observability.py`)
-- Documentation updates (new `docs/observability/AGENT_INTEGRATION.md`)
-- File modification inventory
-- Rollout strategy and success criteria
+### Core Principle
+> Agents do **not** integrate with vendors.  
+> Agents orchestrate **capabilities**.  
+> Vendors satisfy capabilities via optional adapters.
 
-**Critical Files to Modify:**
-- `src/cuga/modular/agents.py` (~100 lines changed)
-- `tests/integration/test_agent_observability.py` (NEW, ~200 lines)
-- `docs/observability/AGENT_INTEGRATION.md` (NEW, ~300 lines)
+This enables:
+- Enterprise data sovereignty
+- Late-binding of vendors
+- Stability under procurement, security, or vendor churn
+- Offline-first development and deterministic testing
 
-**Estimated Effort:** 2-4 days (1-2 days integration + 1-2 days testing)
+### Architectural Layers
+```
+
+Agents     → Orchestrate intent across domains
+Tools      → Implement vendor-agnostic capabilities
+Adapters   → Bind capabilities to vendor APIs (optional, swappable)
+
+```
+
+### Prohibited Patterns
+- ❌ Vendor-specific tool names (e.g. `send_outlook_email`)
+- ❌ Agents referencing adapters directly
+- ❌ Tool logic that assumes a specific SaaS provider
+
+All tools MUST express **business or sales intent**, not infrastructure.
+
+---
+
+## Canonical Core Domains (Authoritative)
+
+All sales-oriented systems built on CUGAr MUST align to the following
+**non-overlapping Core Domains**.
+
+### The Canonical Domains
+1. Territory & Capacity Planning  
+2. Account & Prospect Intelligence  
+3. Product & Knowledge Enablement  
+4. Outreach & Engagement  
+5. Qualification & Deal Progression  
+6. Analytics, Learning & Governance  
+
+### Domain Invariants
+Each domain:
+- Answers a distinct sales or operational question
+- Can be used independently
+- Does not assume availability of other domains
+- Is implemented via **tools**, never via agents
+- Is governed independently via profiles and registry rules
+
+No domain may bypass another domain’s guardrails.
+
+---
+
+## Agent Roles & Interfaces
+
+### PlannerAgent
+- Accepts `(goal: str, metadata: dict)`
+- Returns ordered steps with streaming-friendly traces
+- MUST rank tools by similarity/metadata
+- MUST attach a `ToolBudget` to every plan
+
+### WorkerAgent
+- Executes ordered steps against allowlisted tools
+- Enforces schemas, budgets, retry policies, and sandbox rules
+- Supports partial-result recovery
+
+### CoordinatorAgent
+- Preserves trace ordering
+- Delegates routing exclusively to `RoutingAuthority`
+- Thread-safe, deterministic dispatch
+
+---
+
+## Canonical Protocols (Non-Negotiable)
+
+### OrchestratorProtocol
+All orchestration logic MUST implement `cuga.orchestrator.OrchestratorProtocol`:
+- Lifecycle stages: initialize → plan → route → execute → aggregate → complete
+- Immutable `ExecutionContext` with `trace_id` continuity
+- Explicit routing decisions
+- Structured error propagation with failure modes
+
+See `docs/orchestrator/ORCHESTRATOR_CONTRACT.md`.
+
+---
+
+### AgentLifecycleProtocol
+All agents MUST implement `cuga.agents.lifecycle.AgentLifecycleProtocol`:
+- Idempotent startup
+- Timeout-bounded shutdown
+- Explicit resource ownership
+- No leaked state
+
+See `docs/agents/AGENT_LIFECYCLE.md`.
+
+---
+
+### AgentProtocol (I/O Contract)
+All agents MUST implement:
+```
+
+process(AgentRequest) → AgentResponse
+
+```
+
+Standardizes:
+- Inputs: goal, task, metadata, constraints, context
+- Outputs: status, result/error, trace, metadata
+
+Eliminates special-casing in orchestration.
+
+---
+
+### Failure Modes (Canonical)
+All failures MUST be classified as:
+- AGENT
+- SYSTEM
+- RESOURCE
+- POLICY
+- USER
+
+Retry semantics MUST be delegated to `RetryPolicy`.  
+Partial success MUST be preserved and recoverable.
+
+See `docs/orchestrator/FAILURE_MODES.md`.
+
+---
+
+## Capability Contracts (Canonical)
+
+All tools under `cuga.modular.tools.*` MUST implement a **Capability Contract**.
+
+### Capability Contract Requirements
+Each capability MUST declare:
+- Purpose (business / sales intent)
+- Inputs (structured, deterministic)
+- Outputs (structured, explainable)
+- Guardrails (what it MUST NOT do)
+- Side-effect class:
+  - `read-only`
+  - `propose`
+  - `execute` (rare, gated)
+
+### Canonical Capability Examples
+- `draft_outbound_message`
+- `retrieve_product_knowledge`
+- `schedule_engagement_touchpoint`
+- `simulate_territory_change`
+- `explain_recommendation`
+
+### Hard Rules
+- Capabilities MUST work without adapters
+- Capabilities MUST be testable offline
+- Capabilities MUST NOT mutate CRM or external systems unless explicitly approved
+
+---
+
+## Adapter Model (Deferred Vendor Binding)
+
+Adapters bind vendors to capabilities and are OPTIONAL.
+
+### Adapter Rules
+- Live under `cuga.adapters.*`
+- MUST NOT be referenced by agents
+- MUST implement one or more capability contracts
+- MUST use SafeClient and Secrets enforcement
+- MUST be hot-swappable or disableable
+
+### Adapter Failure Semantics
+If an adapter is unavailable:
+- Capability remains callable
+- System degrades gracefully
+- User is informed of reduced execution scope
+
+Capabilities MUST NOT fail solely due to missing adapters.
+
+---
+
+## Sales Capability Domains Mapping
+
+```
+
+cuga.modular.tools.sales
+├── territory        # ownership, capacity, simulation
+├── intelligence     # signals, normalization, confidence
+├── knowledge        # docs, summaries, relevance
+├── engagement       # drafts, sequencing, scheduling
+├── qualification    # BANT/MEDDICC, risk
+└── governance       # explainability, audit, replay
+
+```
+
+### Domain Guardrails
+- Territory: simulation-only, no ownership mutation
+- Intelligence: advisory only, no blind overwrite
+- Knowledge: read-only, no pricing or legal claims
+- Engagement: draft/propose only, human approval required
+- Qualification: conservative bias, surface unknowns
+- Governance: append-only, immutable history
+
+---
+
+## Over-Automation Prohibitions (Canonical)
+
+The following actions are FORBIDDEN unless explicitly approved by policy and profile:
+
+- ❌ Auto-sending emails or messages
+- ❌ Auto-assigning territories or accounts
+- ❌ Auto-closing deals or forecasting outcomes
+- ❌ Auto-modifying pricing, contracts, or legal terms
+
+Systems MUST:
+- Propose actions
+- Explain reasoning
+- Simulate outcomes
+- Require human approval for irreversible changes
+
+---
+
+## Tool Contract
+- Tools live under `cuga.modular.tools.*` only
+- Signature: `(inputs: Dict[str, Any], context: Dict[str, Any]) -> Any`
+- No `eval`/`exec`
+- No network unless profile allows
+- Parameters and IO MUST be declared
+
+### HTTP Client (Canonical)
+All HTTP MUST use `cuga.security.http_client.SafeClient`:
+- 10s read / 5s connect timeouts
+- Exponential backoff (4 attempts)
+- URL redaction in logs
+- No raw httpx/requests/urllib usage
+
+---
+
+## Memory & RAG
+- Deterministic / local embeddings by default
+- Metadata MUST include `profile` and `path`
+- Strict profile isolation with no cross-profile leakage
+
+---
+
+## Observability & Tracing
+- Structured, PII-safe logs
+- Mandatory `trace_id` propagation
+- Canonical events:
+  `plan_created`, `route_decision`, `tool_call_start`, `tool_call_complete`,
+  `tool_call_error`, `budget_warning`, `budget_exceeded`,
+  `approval_requested`, `approval_received`, `approval_timeout`
+
+- Golden Signals:
+  success_rate, latency (P50/P95/P99), tool_error_rate,
+  mean_steps_per_task, approval_wait_time, budget_utilization
+
+---
+
+## Testing Invariants
+- >80% coverage required
+- Critical orchestration paths MUST have integration tests
+- Import guardrails enforced
+- Planner MUST NOT return all tools blindly
+- Round-robin routing verified under concurrency
+
+---
+
+## Change Management
+- Update this file first when modifying guardrails
+- Mirror changes to root `AGENTS.md`
+- Update `CHANGELOG.md`, `README.md`, `PRODUCTION_READINESS.md`, `todo1.md`
+- Registry diffs require synced documentation and tests
+- Run `scripts/verify_guardrails.py --base <ref>` before merge
+
+---
+
+## Enterprise Uncertainty Principle (Canonical)
+
+CUGAr systems MUST assume:
+- Vendors may change
+- Access may be revoked
+- Security reviews may delay integration
+
+Systems MUST remain:
+- Useful without vendors
+- Deterministic offline
+- Explainable and auditable
+- Stable under partial capability loss
+
+This principle overrides convenience and novelty.
+
+---
+
+## Contributor Checklist (TL;DR)
+- Read this file first
+- Design capabilities, not integrations
+- Preserve determinism and explainability
+- Never bypass registry, budgets, or guardrails
+- Favor boring, reliable systems over clever ones
