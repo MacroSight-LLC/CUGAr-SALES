@@ -1,8 +1,86 @@
-# Repository To-Do (v1.0.0 SHIPPED ✅ → v1.1 Integration)
+# Repository To-Do (v1.0.0 SHIPPED ✅ → v1.3.2 Orchestrator Hardening)
 
-**Last Updated:** 2026-01-02  
+**Last Updated:** 2026-01-03  
 **v1.0.0 Status:** ✅ **SHIPPED** (Infrastructure Release - Observability & Guardrails Ready)  
-**v1.1 Status:** Planning (Agent Integration - 2-4 days)
+**v1.1 Status:** ✅ **COMPLETED** (Agent Integration - 2026-01-02)  
+**v1.3.2 Status:** 90% Complete (Orchestrator Hardening - 9/10 tasks done)
+
+---
+
+## ✅ v1.3.2 Orchestrator Hardening (90% Complete - 9/10 Tasks)
+
+**Goal:** Production-ready orchestrator with retry, audit, approval, and recovery mechanisms
+
+**Test Coverage:** 168/168 tests passing (100%)
+
+### Completed Tasks
+
+1. ✅ **Task #1: OrchestratorProtocol (v1.3.0)** - 31 tests
+   - ExecutionContext with trace_id propagation
+   - Lifecycle stages (initialize → plan → route → execute → aggregate → complete)
+   - Immutable context with with_* update methods
+   - Status: Complete
+
+2. ✅ **Task #2: RoutingAuthority (v1.3.0)** - 20 tests
+   - PolicyBasedRoutingAuthority with pluggable routing policies
+   - RoundRobinPolicy, CapabilityBasedPolicy, LoadBalancedPolicy
+   - Routing decisions with audit trail integration
+   - Status: Complete
+
+3. ✅ **Task #3: PlanningAuthority (v1.3.1)** - 18 tests
+   - Plan creation with state machine transitions (CREATED → VALIDATED → EXECUTING → COMPLETED/FAILED)
+   - ToolBudget tracking (cost_ceiling, call_ceiling, token_ceiling)
+   - Budget enforcement with warnings and blocking
+   - Status: Complete
+
+4. ✅ **Task #4: RetryPolicy (v1.3.1)** - 18 tests
+   - Exponential backoff, linear backoff, no-retry strategies
+   - Transient failure detection (ConnectionError, TimeoutError, etc.)
+   - Max attempt tracking with backoff delays
+   - Status: Complete
+
+5. ✅ **Task #5: AuditTrail (v1.3.2)** - 17 tests
+   - SQLite backend for persistent audit records
+   - DecisionRecord with trace-based queries
+   - Planning, routing, execution decision recording
+   - Status: Complete
+
+6. ✅ **Task #6: Approval Gates (v1.3.2)** - 26 tests
+   - Manual approval with HITL integration
+   - Auto-approve on timeout
+   - Approval policy enforcement
+   - Status: Complete
+
+7. ✅ **Task #7: Partial Result Preservation (v1.3.2)** - 22 tests
+   - Checkpoint-based recovery after failures
+   - Partial result extraction from exceptions
+   - Recovery strategy suggestions
+   - Status: Complete
+
+8. ✅ **Task #8: Tool Documentation (v1.3.1)** - 1,440+ lines
+   - Comprehensive tool contract documentation
+   - API reference for all orchestrator components
+   - Integration patterns and best practices
+   - Status: Complete
+
+9. ✅ **Task #9: Full Integration Tests (v1.3.2)** - 16 tests ← **COMPLETED 2026-01-03**
+   - End-to-end orchestration scenarios
+   - Retry + approval + audit + recovery integration
+   - Concurrent execution with trace isolation
+   - Status: Complete (see `TASK_9_COMPLETION.md`)
+
+### Pending Tasks
+
+10. ⏳ **Task #10: Architecture Documentation (v1.3.2)** - Estimated 1-2 hours
+    - Update `ARCHITECTURE.md` with completed orchestrator features
+    - Update `AGENTS.md` with CoordinatorAgent/WorkerAgent enhancements
+    - Update `docs/orchestrator/README.md` with full feature matrix
+    - Create deployment guide for orchestrator configuration
+    - Document best practices and usage patterns
+
+**Overall Progress:** 90% (9/10 tasks complete)  
+**Test Statistics:** 168 orchestrator tests passing (100%)  
+**Next:** Task #10 (Architecture Documentation)
 
 ---
 

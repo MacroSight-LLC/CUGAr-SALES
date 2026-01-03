@@ -141,6 +141,8 @@ class FailureMode(str, Enum):
             
             # Partial states may be retried
             FailureMode.PARTIAL_TIMEOUT,
+            FailureMode.PARTIAL_STEP_FAILURES,
+            FailureMode.PARTIAL_TOOL_FAILURES,
         }
         return self in retryable_modes
     
@@ -192,13 +194,23 @@ class PartialResult:
     """
     Represents partial success with completed and failed components.
     
+    Enhanced in v1.3.2 with step-level result tracking, timestamps, and recovery hints
+    for robust failure recovery in multi-step workflows.
+    
     Attributes:
-        completed_steps: Steps that completed successfully
-        failed_steps: Steps that failed
-        partial_data: Partial output data
+        completed_steps: Steps that completed successfully (list of step names/IDs)
+        failed_steps: Steps that failed (list of step names/IDs)
+        partial_data: Partial output data (accumulated results from completed steps)
         failure_mode: Primary failure mode for failed steps
-        recovery_strategy: Suggested recovery approach
+        recovery_strategy: Suggested recovery approach ("retry_failed", "skip_failed", "manual")
         metadata: Additional partial result context
+        
+        # Enhanced fields (v1.3.2+):
+        step_results: Detailed results for each completed step {step_name: result}
+        step_timestamps: Timestamps for each step completion {step_name: timestamp}
+        total_steps: Total number of steps in original plan
+        failure_point: Index/name of step where failure occurred
+        trace_id: Trace identifier for observability
     """
     
     completed_steps: List[str]
@@ -208,18 +220,85 @@ class PartialResult:
     recovery_strategy: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     
+    # Enhanced fields (v1.3.2+)
+    step_results: Dict[str, Any] = field(default_factory=dict)
+    step_timestamps: Dict[str, float] = field(default_factory=dict)
+    total_steps: int = 0
+    failure_point: Optional[str] = None
+    trace_id: Optional[str] = None
+    
     @property
     def completion_ratio(self) -> float:
-        """Calculate completion ratio (0.0-1.0)."""
-        total = len(self.completed_steps) + len(self.failed_steps)
-        if total == 0:
-            return 0.0
-        return len(self.completed_steps) / total
+        """Calculate completion ratio (0.0-1.0) based on total steps."""
+        if self.total_steps == 0:
+            # Fallback to old calculation if total_steps not set
+            total = len(self.completed_steps) + len(self.failed_steps)
+            if total == 0:
+                return 0.0
+            return len(self.completed_steps) / total
+        return len(self.completed_steps) / self.total_steps
     
     @property
     def is_recoverable(self) -> bool:
         """Whether partial result is recoverable."""
         return self.failure_mode.retryable and self.completion_ratio > 0.0
+    
+    @property
+    def remaining_steps(self) -> int:
+        """Calculate number of remaining steps (not completed or failed)."""
+        if self.total_steps == 0:
+            return 0
+        return self.total_steps - len(self.completed_steps) - len(self.failed_steps)
+    
+    def get_step_result(self, step_name: str) -> Optional[Any]:
+        """Get result for a specific completed step."""
+        return self.step_results.get(step_name)
+    
+    def get_step_duration(self, step_name: str) -> Optional[float]:
+        """
+        Get duration for a specific step (seconds).
+        
+        Returns None if step not found or duration not calculable.
+        """
+        if step_name not in self.step_timestamps:
+            return None
+        
+        # Find previous step timestamp or use first timestamp as baseline
+        timestamps = sorted(self.step_timestamps.values())
+        step_ts = self.step_timestamps[step_name]
+        
+        if len(timestamps) == 1:
+            # Only one step - can't calculate duration
+            return None
+        
+        # Find previous timestamp
+        idx = timestamps.index(step_ts)
+        if idx == 0:
+            # First step - can't calculate duration
+            return None
+        
+        return step_ts - timestamps[idx - 1]
+    
+    def get_recovery_hint(self) -> str:
+        """
+        Get human-readable recovery hint based on failure mode and completion ratio.
+        
+        Returns:
+            Recovery suggestion string
+        """
+        if self.completion_ratio == 0.0:
+            return "No steps completed - retry entire workflow from start"
+        
+        if self.completion_ratio >= 0.9:
+            return f"Near complete ({self.completion_ratio:.0%}) - retry only failed steps"
+        
+        if self.completion_ratio >= 0.5:
+            return f"Partial progress ({self.completion_ratio:.0%}) - continue from last checkpoint"
+        
+        if self.failure_mode.retryable:
+            return f"Minimal progress ({self.completion_ratio:.0%}) - retry with backoff"
+        
+        return f"Terminal failure ({self.failure_mode.value}) - manual intervention required"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
@@ -231,7 +310,68 @@ class PartialResult:
             "completion_ratio": self.completion_ratio,
             "recovery_strategy": self.recovery_strategy,
             "metadata": self.metadata,
+            # Enhanced fields
+            "step_results": self.step_results,
+            "step_timestamps": self.step_timestamps,
+            "total_steps": self.total_steps,
+            "failure_point": self.failure_point,
+            "trace_id": self.trace_id,
+            "remaining_steps": self.remaining_steps,
+            "recovery_hint": self.get_recovery_hint(),
         }
+    
+    @classmethod
+    def create_empty(cls, total_steps: int, trace_id: Optional[str] = None) -> "PartialResult":
+        """
+        Create empty partial result for workflow initialization.
+        
+        Args:
+            total_steps: Total number of steps in workflow
+            trace_id: Trace identifier
+            
+        Returns:
+            Empty PartialResult ready for step-by-step updates
+        """
+        return cls(
+            completed_steps=[],
+            failed_steps=[],
+            partial_data={},
+            failure_mode=FailureMode.PARTIAL_STEP_FAILURES,
+            total_steps=total_steps,
+            trace_id=trace_id,
+        )
+    
+    def add_completed_step(
+        self,
+        step_name: str,
+        result: Any,
+        timestamp: Optional[float] = None,
+    ) -> None:
+        """
+        Add a completed step with its result.
+        
+        Args:
+            step_name: Step identifier
+            result: Step execution result
+            timestamp: Step completion timestamp (uses current time if None)
+        """
+        if step_name not in self.completed_steps:
+            self.completed_steps.append(step_name)
+        self.step_results[step_name] = result
+        self.step_timestamps[step_name] = timestamp or time.time()
+    
+    def add_failed_step(self, step_name: str, failure_mode: FailureMode) -> None:
+        """
+        Add a failed step with failure mode.
+        
+        Args:
+            step_name: Step identifier
+            failure_mode: Failure mode for this step
+        """
+        if step_name not in self.failed_steps:
+            self.failed_steps.append(step_name)
+        self.failure_point = step_name
+        self.failure_mode = failure_mode
 
 
 @dataclass
@@ -324,7 +464,7 @@ class FailureContext:
         # Check exception type patterns
         if "timeout" in exc_type.lower() or "timeout" in exc_msg:
             return FailureMode.SYSTEM_TIMEOUT
-        elif "network" in exc_type.lower() or "connection" in exc_msg:
+        elif "connection" in exc_type.lower() or "network" in exc_msg or "connection" in exc_msg:
             return FailureMode.SYSTEM_NETWORK
         elif "memory" in exc_msg or "oom" in exc_msg:
             return FailureMode.SYSTEM_OOM

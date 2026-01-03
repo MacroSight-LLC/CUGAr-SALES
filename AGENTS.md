@@ -18,6 +18,129 @@
 - **AgentProtocol (I/O Contract)** (Canonical): All agents MUST implement `process(AgentRequest) -> AgentResponse` for standardized inputs (goal, task, metadata, inputs, context, constraints) and outputs (status, result/error, trace, metadata). Eliminates special-casing in routing/orchestration. See `docs/agents/AGENT_IO_CONTRACT.md`.
 - **Failure Modes** (Canonical): All errors MUST be categorized using `FailureMode` taxonomy (AGENT/SYSTEM/RESOURCE/POLICY/USER), distinguishing retryable vs terminal failures and partial success states. Orchestrators MUST use `RetryPolicy` (exponential backoff/linear/none) for safe execution management. See `docs/orchestrator/FAILURE_MODES.md`.
 
+## Orchestrator-Enhanced Agents (v1.3.2)
+
+### CoordinatorAgent
+CoordinatorAgent now integrates with RoutingAuthority for deterministic worker selection:
+
+**Core Capabilities:**
+- **RoutingAuthority Integration**: Delegates worker selection to pluggable `RoutingPolicy` implementations
+- **Round-Robin Policy**: Thread-safe worker selection guaranteeing fairness across concurrent dispatches
+- **Trace Propagation**: Ensures `trace_id` flows from plan → route → execute with no gaps
+- **Observability**: Emits `route_decision` events with worker_id, policy type, and reasoning
+
+**Usage Pattern:**
+```python
+from cuga.orchestrator.routing import PolicyBasedRoutingAuthority, RoundRobinPolicy
+
+# Create routing authority with round-robin policy
+routing_authority = PolicyBasedRoutingAuthority(
+    worker_policy=RoundRobinPolicy()
+)
+
+# Coordinator delegates to routing authority
+coordinator = CoordinatorAgent(routing_authority=routing_authority)
+
+# Dispatch with automatic routing
+worker = coordinator.dispatch(task, workers=worker_pool)
+```
+
+**Key Benefits:**
+- No internal routing logic in CoordinatorAgent (separation of concerns)
+- Pluggable policies (round-robin, capability-based, load-balanced)
+- Thread-safe concurrent dispatch with deterministic ordering
+- Full audit trail of routing decisions
+
+See `docs/orchestrator/ROUTING_AUTHORITY.md` for routing policy examples.
+
+### WorkerAgent
+WorkerAgent now supports retry, recovery, and budget enforcement:
+
+**Core Capabilities:**
+- **RetryPolicy Integration**: Automatic retry with exponential/linear backoff for transient failures
+- **Partial Result Recovery**: Checkpoint-based resume after failures with `execute_from_partial()`
+- **Budget Enforcement**: Validates `ToolBudget` before tool calls, emits `budget_exceeded` on violation
+- **Observability**: Emits `tool_call_start`, `tool_call_complete`, `tool_call_error` with duration tracking
+
+**Usage Pattern:**
+```python
+from cuga.orchestrator.retry import create_retry_policy
+from cuga.orchestrator.partial_result import PartialResult
+
+# Create worker with retry policy
+retry_policy = create_retry_policy(
+    strategy="exponential",
+    max_attempts=3,
+    base_delay=0.1,
+    max_delay=5.0,
+)
+
+worker = WorkerAgent(
+    registry=registry,
+    memory=memory,
+    retry_policy=retry_policy,
+)
+
+# Execute with automatic retry
+try:
+    result = worker.execute(steps, metadata={"trace_id": trace_id})
+except Exception as exc:
+    # Extract partial result for recovery
+    partial = worker.get_partial_result_from_exception(exc)
+    if partial and partial.is_recoverable:
+        # Resume from checkpoint
+        result = worker.execute_from_partial(steps, partial)
+```
+
+**Key Benefits:**
+- Transient failure handling without manual retry logic
+- Preserves completed work for recovery (no redundant re-execution)
+- Budget ceiling enforcement prevents runaway costs
+- Rich observability for debugging execution failures
+
+See `docs/orchestrator/FAILURE_MODES.md` for retry strategies and `tests/test_partial_results.py` for recovery examples.
+
+### PlannerAgent
+PlannerAgent now creates budget-aware plans with audit integration:
+
+**Core Capabilities:**
+- **ToolBudget Creation**: Plans include `cost_ceiling`, `call_ceiling`, `token_ceiling` enforcement
+- **AuditTrail Integration**: All plans automatically recorded with trace_id and goal metadata
+- **Observability**: Emits `plan_created` events with step_count, tool_list, budget_remaining
+
+**Usage Pattern:**
+```python
+from cuga.orchestrator.planning import Plan, PlanStep, ToolBudget, PlanningStage
+
+# Planner creates budget-aware plans
+planner = PlannerAgent(registry=registry, memory=memory)
+
+# Plan with budget constraints
+plan = planner.plan(
+    goal="Analyze user feedback and generate report",
+    metadata={
+        "trace_id": trace_id,
+        "budget": ToolBudget(
+            cost_ceiling=50.0,
+            call_ceiling=20,
+            token_ceiling=5000,
+        ),
+    },
+)
+
+# Plan automatically recorded to audit trail
+assert plan.budget.cost_ceiling == 50.0
+assert plan.stage == PlanningStage.CREATED
+```
+
+**Key Benefits:**
+- Prevents unbounded tool usage with budget ceilings
+- Full audit trail of planning decisions for debugging
+- Observable plan creation with metadata tracking
+- Explicit state machine (CREATED → VALIDATED → EXECUTING → COMPLETED)
+
+See `docs/orchestrator/PLANNING_AUTHORITY.md` for planning patterns.
+
 ## Planning Protocol
 - LangGraph-first planning and streaming hooks; planners must not select all tools blindly and must rank by similarity/metadata.
 - Clamp `PLANNER_MAX_STEPS` to 1..50 with warnings on invalid input; `MODEL_TEMPERATURE` clamps to 0..2.
