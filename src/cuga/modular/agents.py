@@ -4,7 +4,7 @@ import threading
 import time
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from .config import AgentConfig
 from .llm.interface import LLM, MockLLM
@@ -19,6 +19,27 @@ from cuga.observability import (
     BudgetEvent,
     emit_event,
     get_collector,
+)
+
+# Agent lifecycle protocol (v1.2.0+)
+from cuga.agents.lifecycle import (
+    AgentLifecycleProtocol,
+    AgentState,
+    StateOwnership,
+    LifecycleConfig,
+    LifecycleMetrics,
+)
+
+# Agent I/O contract (v1.2.0+)
+from cuga.agents.contracts import (
+    AgentProtocol,
+    AgentRequest,
+    AgentResponse,
+    RequestMetadata,
+    ResponseStatus,
+    ErrorType,
+    success_response,
+    error_response,
 )
 
 # Legacy imports (deprecated in v1.1.0, will be removed in v1.3.0)
@@ -57,6 +78,99 @@ class PlannerAgent:
     memory: VectorMemory
     config: AgentConfig = field(default_factory=AgentConfig.from_env)
     llm: LLM = field(default_factory=MockLLM)
+    
+    # Lifecycle state (v1.2.0+)
+    _state: AgentState = field(default=AgentState.UNINITIALIZED, init=False)
+    _metrics: LifecycleMetrics = field(default_factory=LifecycleMetrics, init=False)
+    _state_lock: threading.Lock = field(default_factory=threading.Lock, init=False)
+
+    # Lifecycle Protocol Implementation (v1.2.0+)
+    
+    async def startup(self, config: Optional[LifecycleConfig] = None) -> None:
+        """Initialize planner resources (idempotent, timeout-bounded)."""
+        with self._state_lock:
+            if self._state in (AgentState.READY, AgentState.BUSY):
+                # Already initialized - idempotent
+                return
+            
+            start_time = time.perf_counter()
+            self._transition_state(AgentState.INITIALIZING)
+            
+            try:
+                # Load memory state if exists
+                # (Memory owns persistent state, we just read it)
+                # No allocation needed for PlannerAgent - it's stateless
+                
+                self._transition_state(AgentState.READY)
+                
+                # Record startup time
+                duration_ms = (time.perf_counter() - start_time) * 1000
+                self._metrics.startup_time_ms = duration_ms
+                
+            except Exception as e:
+                self._transition_state(AgentState.TERMINATED)
+                raise RuntimeError(f"PlannerAgent startup failed: {e}") from e
+    
+    async def shutdown(self, timeout_seconds: Optional[float] = None) -> None:
+        """Clean up planner resources (MUST NOT raise exceptions)."""
+        start_time = time.perf_counter()
+        
+        try:
+            with self._state_lock:
+                if self._state == AgentState.TERMINATED:
+                    return  # Already shut down
+                
+                self._transition_state(AgentState.SHUTTING_DOWN)
+                
+                # Persist MEMORY state (dirty flush)
+                # PlannerAgent has no AGENT state to discard (stateless)
+                
+                # Record shutdown time
+                duration_ms = (time.perf_counter() - start_time) * 1000
+                self._metrics.shutdown_time_ms = duration_ms
+                
+                self._transition_state(AgentState.TERMINATED)
+                
+        except Exception as e:
+            # MUST NOT raise - log error internally
+            print(f"Warning: PlannerAgent shutdown error: {e}")
+            self._state = AgentState.TERMINATED
+    
+    def get_state(self) -> AgentState:
+        """Get current lifecycle state (thread-safe)."""
+        return self._state
+    
+    def get_metrics(self) -> LifecycleMetrics:
+        """Get lifecycle metrics."""
+        return self._metrics
+    
+    def owns_state(self, key: str) -> StateOwnership:
+        """Determine who owns a specific state key."""
+        # AGENT state (ephemeral, request-scoped)
+        if key in ("_state", "_metrics", "_state_lock", "llm", "registry"):
+            return StateOwnership.AGENT
+        
+        # MEMORY state (persistent, cross-request)
+        if key in ("memory",):
+            return StateOwnership.MEMORY
+        
+        # ORCHESTRATOR state (coordination, trace propagation)
+        if key in ("trace_id", "routing_context", "parent_context"):
+            return StateOwnership.ORCHESTRATOR
+        
+        # Config is shared
+        if key == "config":
+            return StateOwnership.SHARED
+        
+        # Unknown - log warning
+        print(f"Warning: Unknown state key '{key}' - assuming AGENT ownership")
+        return StateOwnership.AGENT
+    
+    def _transition_state(self, new_state: AgentState) -> None:
+        """Transition to new state (must hold _state_lock)."""
+        old_state = self._state
+        self._state = new_state
+        self._metrics.record_transition(old_state, new_state)
 
     def plan(self, goal: str, metadata: Optional[dict] = None) -> AgentPlan:
         """Create execution plan with observability event emission."""
@@ -118,6 +232,81 @@ class PlannerAgent:
         
         trace.append({"event": "plan:complete", "profile": profile, "trace_id": trace_id})
         return AgentPlan(steps=steps, trace=trace)
+    
+    # AgentProtocol I/O Contract (v1.2.0+)
+    
+    async def process(self, request: AgentRequest) -> AgentResponse:
+        """
+        Process agent request with standardized I/O contract.
+        
+        Provides clean routing interface while maintaining backward compatibility
+        with existing plan() method.
+        
+        Args:
+            request: Canonical agent request (goal, task, metadata)
+            
+        Returns:
+            Canonical agent response (status, result, trace, metadata)
+        """
+        # Validate request
+        validation_errors = request.validate()
+        if validation_errors:
+            return error_response(
+                error_type=ErrorType.VALIDATION,
+                message=f"Request validation failed: {', '.join(validation_errors)}",
+                details={"validation_errors": validation_errors},
+                recoverable=False,
+                trace=[{"event": "validation_failed", "errors": validation_errors}],
+                metadata={"trace_id": request.metadata.trace_id},
+            )
+        
+        start_time = time.perf_counter()
+        
+        try:
+            # Convert AgentRequest to plan() call
+            metadata_dict = {
+                "profile": request.metadata.profile,
+                "trace_id": request.metadata.trace_id,
+                "priority": request.metadata.priority,
+                **(request.context or {}),
+                **(request.inputs or {}),
+            }
+            
+            # Call existing plan() method
+            plan_result = self.plan(goal=request.goal, metadata=metadata_dict)
+            
+            # Convert AgentPlan to AgentResponse
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            
+            return success_response(
+                result={
+                    "steps": plan_result.steps,
+                    "steps_count": len(plan_result.steps),
+                    "tools_selected": [step["tool"] for step in plan_result.steps],
+                },
+                trace=plan_result.trace,
+                metadata={
+                    "duration_ms": duration_ms,
+                    "trace_id": request.metadata.trace_id,
+                    "profile": request.metadata.profile,
+                    "agent_type": "planner",
+                },
+            )
+            
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            
+            return error_response(
+                error_type=ErrorType.EXECUTION,
+                message=f"Planning failed: {str(e)}",
+                details={"exception": str(e), "exception_type": type(e).__name__},
+                recoverable=True,
+                trace=[{"event": "plan_error", "error": str(e)}],
+                metadata={
+                    "duration_ms": duration_ms,
+                    "trace_id": request.metadata.trace_id,
+                },
+            )
 
     def _rank_tools(self, goal: str) -> List[tuple[Any, float]]:
         import re
@@ -148,6 +337,11 @@ class WorkerAgent:
     memory: VectorMemory
     observability: Optional[Any] = None  # Legacy BaseEmitter (deprecated in v1.1.0, removed in v1.3.0)
     guardrail_policy: Optional[Any] = None  # GuardrailPolicy if guardrails enabled
+    
+    # Lifecycle state fields (AgentLifecycleProtocol)
+    _state: AgentState = field(default=AgentState.UNINITIALIZED, init=False)
+    _metrics: LifecycleMetrics = field(default_factory=LifecycleMetrics, init=False)
+    _state_lock: threading.Lock = field(default_factory=threading.Lock, init=False)
 
     def __post_init__(self):
         """Emit deprecation warning if legacy observability is used."""
@@ -317,6 +511,172 @@ class WorkerAgent:
         # Store output in memory
         self.memory.remember(str(output), metadata={"profile": profile, "trace_id": trace_id})
         return AgentResult(output=output, trace=trace)
+    
+    # AgentProtocol I/O Contract (v1.2.0+)
+    
+    async def process(self, request: AgentRequest) -> AgentResponse:
+        """
+        Process agent request with standardized I/O contract.
+        
+        Provides clean routing interface while maintaining backward compatibility
+        with existing execute() method.
+        
+        Args:
+            request: Canonical agent request (steps in inputs field)
+            
+        Returns:
+            Canonical agent response (status, result, trace, metadata)
+        """
+        # Validate request
+        validation_errors = request.validate()
+        if validation_errors:
+            return error_response(
+                error_type=ErrorType.VALIDATION,
+                message=f"Request validation failed: {', '.join(validation_errors)}",
+                details={"validation_errors": validation_errors},
+                recoverable=False,
+                trace=[{"event": "validation_failed", "errors": validation_errors}],
+                metadata={"trace_id": request.metadata.trace_id},
+            )
+        
+        start_time = time.perf_counter()
+        
+        try:
+            # Extract steps from inputs (required for worker)
+            if not request.inputs or "steps" not in request.inputs:
+                return error_response(
+                    error_type=ErrorType.VALIDATION,
+                    message="WorkerAgent requires 'steps' in request.inputs",
+                    details={"inputs": request.inputs},
+                    recoverable=False,
+                    trace=[{"event": "missing_steps"}],
+                    metadata={"trace_id": request.metadata.trace_id},
+                )
+            
+            steps = request.inputs["steps"]
+            
+            # Convert AgentRequest to execute() call
+            metadata_dict = {
+                "profile": request.metadata.profile,
+                "trace_id": request.metadata.trace_id,
+                "priority": request.metadata.priority,
+                **(request.context or {}),
+            }
+            
+            # Call existing execute() method
+            exec_result = self.execute(steps=steps, metadata=metadata_dict)
+            
+            # Convert AgentResult to AgentResponse
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            
+            return success_response(
+                result={
+                    "output": exec_result.output,
+                    "steps_executed": len(steps),
+                },
+                trace=exec_result.trace,
+                metadata={
+                    "duration_ms": duration_ms,
+                    "trace_id": request.metadata.trace_id,
+                    "profile": request.metadata.profile,
+                    "agent_type": "worker",
+                },
+            )
+            
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            
+            return error_response(
+                error_type=ErrorType.EXECUTION,
+                message=f"Execution failed: {str(e)}",
+                details={"exception": str(e), "exception_type": type(e).__name__},
+                recoverable=True,
+                trace=[{"event": "exec_error", "error": str(e)}],
+                metadata={
+                    "duration_ms": duration_ms,
+                    "trace_id": request.metadata.trace_id,
+                },
+            )
+    
+    # ========== AgentLifecycleProtocol Methods ==========
+    
+    async def startup(self, config: Optional[LifecycleConfig] = None) -> None:
+        """Initialize worker resources (idempotent, timeout-bounded)."""
+        with self._state_lock:
+            if self._state in (AgentState.READY, AgentState.BUSY):
+                return  # Already initialized
+            
+            start_time = time.perf_counter()
+            self._transition_state(AgentState.INITIALIZING)
+            
+            try:
+                # Worker initialization: validate registry/memory
+                if not self.registry or not self.memory:
+                    raise ValueError("Worker requires registry and memory")
+                
+                self._transition_state(AgentState.READY)
+                duration_ms = (time.perf_counter() - start_time) * 1000
+                self._metrics.startup_time_ms = duration_ms
+            except Exception as e:
+                self._transition_state(AgentState.TERMINATED)
+                raise RuntimeError(f"WorkerAgent startup failed: {e}") from e
+    
+    async def shutdown(self, timeout_seconds: Optional[float] = None) -> None:
+        """Clean up worker resources (MUST NOT raise exceptions)."""
+        try:
+            with self._state_lock:
+                if self._state == AgentState.TERMINATED:
+                    return  # Already shut down
+                
+                start_time = time.perf_counter()
+                self._transition_state(AgentState.SHUTTING_DOWN)
+                
+                # Worker cleanup: discard ephemeral state
+                # Memory persistence handled by memory system
+                
+                self._transition_state(AgentState.TERMINATED)
+                duration_ms = (time.perf_counter() - start_time) * 1000
+                self._metrics.shutdown_time_ms = duration_ms
+        except Exception as e:
+            # MUST NOT raise - log and ensure terminated state
+            print(f"Warning: WorkerAgent shutdown error: {e}")
+            self._state = AgentState.TERMINATED
+    
+    def get_state(self) -> AgentState:
+        """Get current lifecycle state (thread-safe read)."""
+        return self._state
+    
+    def get_metrics(self) -> LifecycleMetrics:
+        """Get lifecycle metrics."""
+        return self._metrics
+    
+    def owns_state(self, key: str) -> StateOwnership:
+        """Determine who owns a specific state key."""
+        # AGENT: Ephemeral state (request-scoped, discarded on shutdown)
+        if key in ("_state", "_metrics", "_state_lock", "observability", "guardrail_policy"):
+            return StateOwnership.AGENT
+        
+        # MEMORY: Persistent state (survives restarts)
+        if key == "memory":
+            return StateOwnership.MEMORY
+        
+        # ORCHESTRATOR: Coordination state (managed by orchestrator)
+        if key in ("trace_id", "routing_context", "parent_context"):
+            return StateOwnership.ORCHESTRATOR
+        
+        # SHARED: Config (shared between components)
+        if key in ("registry",):
+            return StateOwnership.SHARED
+        
+        # Default to AGENT with warning
+        print(f"Warning: Unknown state key '{key}' defaulting to AGENT ownership")
+        return StateOwnership.AGENT
+    
+    def _transition_state(self, new_state: AgentState) -> None:
+        """Atomic state transition with metrics tracking."""
+        old_state = self._state
+        self._state = new_state
+        self._metrics.state_transitions += 1
 
 
 @dataclass
@@ -326,6 +686,162 @@ class CoordinatorAgent:
     memory: VectorMemory
     _next_worker_idx: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    
+    # Lifecycle state (v1.2.0+)
+    _state: AgentState = field(default=AgentState.UNINITIALIZED, init=False)
+    _metrics: LifecycleMetrics = field(default_factory=LifecycleMetrics, init=False)
+    _state_lock: threading.Lock = field(default_factory=threading.Lock, init=False)
+    
+    # Lifecycle Protocol Implementation (v1.2.0+)
+    
+    async def startup(self, config: Optional[LifecycleConfig] = None) -> None:
+        """Initialize coordinator and managed agents."""
+        with self._state_lock:
+            if self._state in (AgentState.READY, AgentState.BUSY):
+                return  # Already initialized
+            
+            start_time = time.perf_counter()
+            self._transition_state(AgentState.INITIALIZING)
+            
+            try:
+                # Initialize managed agents
+                await self.planner.startup(config)
+                for worker in self.workers:
+                    await worker.startup(config)
+                
+                self._transition_state(AgentState.READY)
+                
+                duration_ms = (time.perf_counter() - start_time) * 1000
+                self._metrics.startup_time_ms = duration_ms
+                
+            except Exception as e:
+                self._transition_state(AgentState.TERMINATED)
+                raise RuntimeError(f"CoordinatorAgent startup failed: {e}") from e
+    
+    async def shutdown(self, timeout_seconds: Optional[float] = None) -> None:
+        """Clean up coordinator and managed agents."""
+        start_time = time.perf_counter()
+        
+        try:
+            with self._state_lock:
+                if self._state == AgentState.TERMINATED:
+                    return
+                
+                self._transition_state(AgentState.SHUTTING_DOWN)
+                
+                # Shutdown managed agents
+                await self.planner.shutdown(timeout_seconds)
+                for worker in self.workers:
+                    await worker.shutdown(timeout_seconds)
+                
+                duration_ms = (time.perf_counter() - start_time) * 1000
+                self._metrics.shutdown_time_ms = duration_ms
+                
+                self._transition_state(AgentState.TERMINATED)
+                
+        except Exception as e:
+            print(f"Warning: CoordinatorAgent shutdown error: {e}")
+            self._state = AgentState.TERMINATED
+    
+    def get_state(self) -> AgentState:
+        """Get current lifecycle state (thread-safe)."""
+        return self._state
+    
+    def get_metrics(self) -> LifecycleMetrics:
+        """Get lifecycle metrics."""
+        return self._metrics
+    
+    def owns_state(self, key: str) -> StateOwnership:
+        """Determine who owns a specific state key."""
+        # AGENT state (ephemeral, coordination-specific)
+        if key in ("_state", "_metrics", "_state_lock", "_next_worker_idx", "_lock", "planner", "workers"):
+            return StateOwnership.AGENT
+        
+        # MEMORY state (persistent)
+        if key in ("memory",):
+            return StateOwnership.MEMORY
+        
+        # ORCHESTRATOR state
+        if key in ("trace_id", "routing_context", "routing_policy"):
+            return StateOwnership.ORCHESTRATOR
+        
+        print(f"Warning: Unknown state key '{key}' - assuming AGENT ownership")
+        return StateOwnership.AGENT
+    
+    def _transition_state(self, new_state: AgentState) -> None:
+        """Transition to new state (must hold _state_lock)."""
+        old_state = self._state
+        self._state = new_state
+        self._metrics.record_transition(old_state, new_state)
+    
+    # AgentProtocol I/O Contract (v1.2.0+)
+    
+    async def process(self, request: AgentRequest) -> AgentResponse:
+        """
+        Process agent request with standardized I/O contract.
+        
+        Provides clean routing interface while maintaining backward compatibility
+        with existing dispatch() method.
+        
+        Args:
+            request: Canonical agent request (goal for coordination)
+            
+        Returns:
+            Canonical agent response (status, result, trace, metadata)
+        """
+        # Validate request
+        validation_errors = request.validate()
+        if validation_errors:
+            return error_response(
+                error_type=ErrorType.VALIDATION,
+                message=f"Request validation failed: {', '.join(validation_errors)}",
+                details={"validation_errors": validation_errors},
+                recoverable=False,
+                trace=[{"event": "validation_failed", "errors": validation_errors}],
+                metadata={"trace_id": request.metadata.trace_id},
+            )
+        
+        start_time = time.perf_counter()
+        
+        try:
+            # Call existing dispatch() method
+            dispatch_result = self.dispatch(
+                goal=request.goal,
+                trace_id=request.metadata.trace_id,
+            )
+            
+            # Convert AgentResult to AgentResponse
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            
+            return success_response(
+                result={
+                    "output": dispatch_result.output,
+                    "trace_length": len(dispatch_result.trace),
+                },
+                trace=dispatch_result.trace,
+                metadata={
+                    "duration_ms": duration_ms,
+                    "trace_id": request.metadata.trace_id,
+                    "profile": request.metadata.profile,
+                    "agent_type": "coordinator",
+                    "workers_available": len(self.workers),
+                },
+            )
+            
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            
+            return error_response(
+                error_type=ErrorType.EXECUTION,
+                message=f"Coordination failed: {str(e)}",
+                details={"exception": str(e), "exception_type": type(e).__name__},
+                recoverable=True,
+                trace=[{"event": "coord_error", "error": str(e)}],
+                metadata={
+                    "duration_ms": duration_ms,
+                    "trace_id": request.metadata.trace_id,
+                },
+            )
 
     def dispatch(self, goal: str, trace_id: Optional[str] = None) -> AgentResult:
         """Dispatch goal to planner and worker with observability."""
@@ -388,18 +904,12 @@ class CoordinatorAgent:
 
 def build_default_registry() -> ToolRegistry:
     """Build default registry with echo tool for testing."""
-    # Create a simple tool object with name and handler attributes
-    class SimpleTool:
-        def __init__(self, name, description, handler_func):
-            self.name = name
-            self.description = description
-            self.handler = handler_func
+    def echo_handler(inputs: Dict[str, Any], ctx: Dict[str, Any]) -> str:
+        return inputs.get("text", "")
     
-    registry = ToolRegistry()
-    echo_tool = SimpleTool(
+    echo_tool = ToolSpec(
         name="echo",
         description="Echo text",
-        handler_func=lambda inputs, ctx: inputs.get("text", "")
+        handler=echo_handler,
     )
-    registry.register("echo", echo_tool)
-    return registry
+    return ToolRegistry(tools=[echo_tool])

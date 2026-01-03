@@ -21,7 +21,7 @@ from unittest.mock import Mock, patch
 
 from cuga.modular.agents import PlannerAgent, WorkerAgent, CoordinatorAgent
 from cuga.modular.memory import VectorMemory
-from cuga.modular.tools import ToolRegistry as ModularToolRegistry, ToolSpec as ModularToolSpec
+from cuga.modular.tools import ToolRegistry, ToolSpec
 from cuga.modular.config import AgentConfig
 from cuga.observability import get_collector, ObservabilityCollector, PlanEvent
 
@@ -41,10 +41,10 @@ def tool_registry():
         return "analysis result"
     
     tools = [
-        ModularToolSpec(name="search", description="Search for information", handler=search_handler),
-        ModularToolSpec(name="analyze", description="Analyze data", handler=analyze_handler),
+        ToolSpec(name="search", description="Search for information", handler=search_handler),
+        ToolSpec(name="analyze", description="Analyze data", handler=analyze_handler),
     ]
-    return ModularToolRegistry(tools=tools)
+    return ToolRegistry(tools=tools)
 
 
 @pytest.fixture
@@ -165,9 +165,9 @@ class TestPlannerAgentMemory:
         plan_events = [e for e in events if e.event_type == "plan_created"]
         assert len(plan_events) >= 1
         
-        # Validate event structure
+        # Validate event structure (trace_id is top-level field, not in attributes)
         plan_event = plan_events[0]
-        assert "trace_id" in plan_event.attributes
+        assert plan_event.trace_id  # trace_id is a top-level field on StructuredEvent
         assert "goal" in plan_event.attributes
         assert plan_event.attributes["steps_count"] > 0
 
@@ -188,14 +188,14 @@ class TestWorkerAgentMemory:
             memory=memory,
         )
         
-        # Execute step
+        # Execute step (must be wrapped in list)
         step = {
             "tool": "search",
             "input": {"text": "Python tutorials"},
             "trace_id": "test-trace-123",
         }
         
-        result = worker.execute(step)
+        result = worker.execute([step])  # execute() expects list of steps
         
         # Worker should have stored result in memory
         # (Note: Current implementation might not store automatically,
@@ -393,9 +393,8 @@ class TestMemoryLifecycle:
         assert memory.store[0].text == goal
         
         # 2. Execute phase (would store results)
-        for step in plan.steps:
-            result = worker.execute(step)
-            assert result is not None
+        result = worker.execute(plan.steps)  # execute() expects list of steps
+        assert result is not None
         
         # 3. Retrieve phase (search memory for context)
         context = memory.search("Python", top_k=5)
