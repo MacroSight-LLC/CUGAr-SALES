@@ -1,6 +1,6 @@
 
 <div align="center">
-  <img src="../image/CUGAr.png" alt="CUGAr Logo" width="400"/>
+  <img src="../docs/image/CUGAr.png" alt="CUGAr Logo" width="400"/>
 </div>
 
 # AGENTS Documentation — Canonical Mirror
