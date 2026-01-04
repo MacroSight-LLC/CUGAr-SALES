@@ -18,6 +18,124 @@ defaults:
     TRACELOOP_API_KEY: ${TRACELOOP_API_KEY:-}
   mounts: []
   budget_policy: warn
+
+# ===================================================================
+# SALES CAPABILITIES (Tier 1 - Offline-First, Vendor-Neutral)
+# ===================================================================
+#
+# Design Principles:
+# - Capability-first (not vendor-specific)
+# - Offline-first (no network by default)
+# - Deterministic inputs/outputs
+# - READ-ONLY or "propose-only" by default
+# - All execution-class operations require approval
+# - Trace-ID propagation for observability
+# - Budget enforcement per AGENTS.md
+#
+# Organized by canonical core domain:
+# 1. Territory & Capacity Planning
+# 2. Account & Prospect Intelligence
+# 3. Product & Knowledge Enablement (Phase 2)
+# 4. Outreach & Engagement (Phase 3)
+# 5. Qualification & Deal Progression
+# 6. Analytics, Learning & Governance (Phase 4)
+# ===================================================================
+
+sales_capabilities:
+  # Domain 1: Territory & Capacity Planning
+  - id: sales.simulate_territory_change
+    name: "Simulate Territory Change"
+    module: cuga.modular.tools.sales.territory
+    handler: simulate_territory_change
+    description: "Simulate territory reassignment impact (READ-ONLY, requires approval)"
+    sandbox: py-slim
+    scopes: [sales, planning]
+    network_allowed: false
+    classification: read_only
+    requires_approval: true
+    cost: 1.0
+    latency: 0.5
+    
+  - id: sales.assess_capacity_coverage
+    name: "Assess Capacity Coverage"
+    module: cuga.modular.tools.sales.territory
+    handler: assess_capacity_coverage
+    description: "Assess territory capacity and coverage gaps (READ-ONLY)"
+    sandbox: py-slim
+    scopes: [sales, planning]
+    network_allowed: false
+    classification: read_only
+    requires_approval: false
+    cost: 1.0
+    latency: 0.5
+    
+  # Domain 2: Account & Prospect Intelligence
+  - id: sales.normalize_account_record
+    name: "Normalize Account Record"
+    module: cuga.modular.tools.sales.account_intelligence
+    handler: normalize_account_record
+    description: "Normalize account data from any source into canonical schema (READ-ONLY)"
+    sandbox: py-slim
+    scopes: [sales, data]
+    network_allowed: false
+    classification: read_only
+    requires_approval: false
+    cost: 0.5
+    latency: 0.3
+    
+  - id: sales.score_account_fit
+    name: "Score Account Fit"
+    module: cuga.modular.tools.sales.account_intelligence
+    handler: score_account_fit
+    description: "Score account fit against Ideal Customer Profile (READ-ONLY)"
+    sandbox: py-slim
+    scopes: [sales, analysis]
+    network_allowed: false
+    classification: read_only
+    requires_approval: false
+    cost: 1.0
+    latency: 0.5
+    
+  - id: sales.retrieve_account_signals
+    name: "Retrieve Account Signals"
+    module: cuga.modular.tools.sales.account_intelligence
+    handler: retrieve_account_signals
+    description: "Retrieve buying signals for account (STUB - adapter integration in Phase 4)"
+    sandbox: py-slim
+    scopes: [sales, signals]
+    network_allowed: false  # Will be true with adapters in Phase 4
+    classification: read_only
+    requires_approval: false
+    cost: 2.0
+    latency: 1.0
+    
+  # Domain 5: Qualification & Deal Progression
+  - id: sales.qualify_opportunity
+    name: "Qualify Opportunity"
+    module: cuga.modular.tools.sales.qualification
+    handler: qualify_opportunity
+    description: "Qualify opportunity using BANT/MEDDICC framework (advisory only)"
+    sandbox: py-slim
+    scopes: [sales, qualification]
+    network_allowed: false
+    classification: read_only
+    requires_approval: false
+    cost: 1.5
+    latency: 0.5
+    
+  - id: sales.assess_deal_risk
+    name: "Assess Deal Risk"
+    module: cuga.modular.tools.sales.qualification
+    handler: assess_deal_risk
+    description: "Assess deal risk factors and close probability (advisory only)"
+    sandbox: py-slim
+    scopes: [sales, risk_analysis]
+    network_allowed: false
+    classification: read_only
+    requires_approval: false
+    cost: 1.5
+    latency: 0.5
+
 entries:
   - id: langflow
     protocol: http

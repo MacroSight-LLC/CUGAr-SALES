@@ -14,6 +14,7 @@ import { HelpCircle } from "lucide-react";
 import "./AppLayout.css";
 import "./mockApi";
 import "./workspaceThrottle"; // Enforce 3-second minimum interval between workspace API calls
+import { DataSourceConfig } from "./DataSourceConfig";
 
 // Error Boundary Component
 class ErrorBoundary extends Component<
@@ -67,7 +68,7 @@ export function App() {
   const [workspacePanelOpen, setWorkspacePanelOpen] = useState(true);
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [highlightedFile, setHighlightedFile] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"conversations" | "variables" | "savedflows">("conversations");
+  const [activeTab, setActiveTab] = useState<"conversations" | "variables" | "savedflows" | "datasources">("conversations");
   const [previousVariablesCount, setPreviousVariablesCount] = useState(0);
   const [previousHistoryLength, setPreviousHistoryLength] = useState(0);
   const [threadId, setThreadId] = useState<string>("");
@@ -217,15 +218,19 @@ export function App() {
             />
           )}
           <div className="chat-container">
-            <CustomChat
-              onVariablesUpdate={handleVariablesUpdate}
-              onFileAutocompleteOpen={() => setWorkspacePanelOpen(true)}
-              onFileHover={setHighlightedFile}
-              onMessageSent={handleMessageSent}
-              onChatStarted={handleChatStarted}
-              initialChatStarted={hasStartedChat}
-              onThreadIdChange={setThreadId}
-            />
+            {activeTab === "datasources" ? (
+              <DataSourceConfig />
+            ) : (
+              <CustomChat
+                onVariablesUpdate={handleVariablesUpdate}
+                onFileAutocompleteOpen={() => setWorkspacePanelOpen(true)}
+                onFileHover={setHighlightedFile}
+                onMessageSent={handleMessageSent}
+                onChatStarted={handleChatStarted}
+                initialChatStarted={hasStartedChat}
+                onThreadIdChange={setThreadId}
+              />
+            )}
           </div>
           {hasStartedChat && (
             <WorkspacePanel

@@ -644,6 +644,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include adapter hot-swap endpoints
+try:
+    from cuga.api.adapters import router as adapters_router
+    app.include_router(adapters_router)
+    logger.info("✅ Adapter hot-swap endpoints registered at /api/adapters/")
+except ImportError as e:
+    logger.warning(f"⚠️  Adapter endpoints not available: {e}")
+
 if getattr(settings.advanced_features, "use_extension", False):
     print(settings.advanced_features.use_extension)
 

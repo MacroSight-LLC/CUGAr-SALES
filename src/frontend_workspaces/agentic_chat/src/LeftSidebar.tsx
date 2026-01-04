@@ -34,8 +34,8 @@ interface LeftSidebarProps {
   selectedAnswerId: string | null;
   onSelectAnswer: (id: string | null) => void;
   isCollapsed?: boolean;
-  activeTab?: "conversations" | "variables" | "savedflows";
-  onTabChange?: (tab: "conversations" | "variables" | "savedflows") => void;
+  activeTab?: "conversations" | "variables" | "savedflows" | "datasources";
+  onTabChange?: (tab: "conversations" | "variables" | "savedflows" | "datasources") => void;
   leftSidebarRef?: React.RefObject<{ addConversation: (title: string) => void }>;
 }
 
@@ -242,6 +242,13 @@ export function LeftSidebar({
               <span>Saved Flows</span>
             </button>
           )}
+          <button
+            className={`sidebar-tab ${activeTab === "datasources" ? "active" : ""}`}
+            onClick={() => onTabChange ? onTabChange("datasources") : null}
+          >
+            <Database size={16} />
+            <span>Data Sources</span>
+          </button>
         </div>
         <button 
           className="left-sidebar-toggle"
