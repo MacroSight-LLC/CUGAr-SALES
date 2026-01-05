@@ -24,6 +24,26 @@ from .validators import (
     ConfigValidator,
 )
 
+# Re-export legacy config values for backward compatibility
+try:
+    import sys
+    from pathlib import Path
+    # Import from sibling config.py file
+    config_py_path = Path(__file__).parent.parent / "config.py"
+    if config_py_path.exists():
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("cuga_config_legacy", config_py_path)
+        if spec and spec.loader:
+            legacy_config = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(legacy_config)
+            TRAJECTORY_DATA_DIR = legacy_config.TRAJECTORY_DATA_DIR
+            settings = legacy_config.settings
+except Exception:
+    # Fallback defaults if legacy config unavailable
+    import os
+    TRAJECTORY_DATA_DIR = os.path.join(os.getcwd(), "logging", "trajectory_data")
+    settings = None
+
 __all__ = [
     "ConfigResolver",
     "ConfigLayer",
@@ -33,4 +53,6 @@ __all__ = [
     "EnvironmentMode",
     "ValidationResult",
     "ConfigValidator",
+    "TRAJECTORY_DATA_DIR",
+    "settings",
 ]

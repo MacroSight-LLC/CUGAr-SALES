@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Wrench, Zap, CheckCircle2, AlertCircle, Users, User, MoreHorizontal, Lightbulb } from "lucide-react";
 import { exampleUtterances } from "./exampleUtterances";
+import { BackendStatusIndicator } from "./components/BackendStatusIndicator";
 import "./StatusBar.css";
 
 interface Tool {
@@ -809,6 +810,9 @@ export function StatusBar({ threadId }: StatusBarProps) {
         )}
 
       <div className="status-bar-right">
+        {/* Backend Status */}
+        <BackendStatusIndicator />
+        
         {/* Connection Status */}
         <div className="status-item status-connection">
           <CheckCircle2 size={14} className="status-connected" />

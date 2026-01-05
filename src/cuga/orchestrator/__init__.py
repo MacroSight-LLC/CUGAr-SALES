@@ -93,6 +93,35 @@ from .audit import (
     SQLiteAuditBackend,
 )
 
+from .trace_emitter import (
+    # Canonical Trace Emission (AGENTS.md)
+    TraceEmitter,
+)
+
+from .budget_enforcer import (
+    # Budget Enforcement (AGENTS.md)
+    ToolBudget as ToolBudgetEnforcer,  # Avoid conflict with planning.ToolBudget
+    BudgetEnforcer,
+)
+
+from .approval_manager import (
+    # Human Approval (AGENTS.md)
+    ApprovalRequest as ApprovalRequestAGENTS,  # Avoid conflict with approval.ApprovalRequest
+    ApprovalManager,
+)
+
+from .profile_loader import (
+    # Profile-Driven Behavior (AGENTS.md)
+    ProfileConfig,
+    ProfileLoader,
+)
+
+from .coordinator import (
+    # Integrated Coordinator (AGENTS.md)
+    AGENTSCoordinator,
+    ExecutionResult,
+)
+
 __all__ = [
     # Protocol
     "OrchestratorProtocol",
@@ -150,5 +179,16 @@ __all__ = [
     "AuditBackend",
     "JSONAuditBackend",
     "SQLiteAuditBackend",
+    
+    # AGENTS.md Compliance Components
+    "TraceEmitter",
+    "ToolBudgetEnforcer",
+    "BudgetEnforcer",
+    "ApprovalRequestAGENTS",
+    "ApprovalManager",
+    "ProfileConfig",
+    "ProfileLoader",
+    "AGENTSCoordinator",
+    "ExecutionResult",
 ]
 

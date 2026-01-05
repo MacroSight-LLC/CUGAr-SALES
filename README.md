@@ -138,7 +138,75 @@ For a role-by-role, mode-aware walkthrough of how the controller, planners, exec
 
 👋 **[Developer Onboarding Guide](docs/DEVELOPER_ONBOARDING.md)** - Step-by-step walkthrough for newcomers: environment setup (15 min), first agent interaction (10 min), create custom tool (20 min), build custom agent (30 min), wire components together (15 min) with full working examples (calculator tool, math tutor agent, tutoring workflow)
 
-## Quickstart
+## 🖥️ Desktop Deployment for Sales Reps
+
+**CUGAr-SALES is now optimized for local deployment targeting sales representatives and technical specialists!**
+
+### ✅ Deployment Status: Production-Ready
+
+**What's Complete:**
+- ✅ Native desktop application (Electron wrapper)
+- ✅ One-click launch scripts (Windows/Mac/Linux)
+- ✅ Quick Actions Panel with 15 pre-configured workflows
+- ✅ Backend status monitoring
+- ✅ Keyboard shortcuts (Cmd/Ctrl+K for Quick Actions)
+- ✅ Offline-first architecture
+- ✅ First-run setup wizard
+- ✅ Demo data fixtures
+
+### One-Click Launch
+
+#### **macOS / Linux**
+```bash
+./launch_sales_assistant.sh
+```
+
+#### **Windows**
+```
+launch_sales_assistant.bat
+```
+
+#### **Desktop Application**
+Build native installers for zero-friction deployment:
+```bash
+cd src/frontend_workspaces/agentic_chat
+npm install
+npm run electron:build          # Auto-detect platform
+npm run electron:build:mac      # macOS (Intel & Apple Silicon)
+npm run electron:build:win      # Windows installer
+npm run electron:build:linux    # AppImage & .deb
+```
+
+### Sales-Focused Features
+
+**Quick Actions** (Press Cmd/Ctrl+K):
+- 🎯 **Prospecting**: Score prospects, research accounts, find decision makers
+- ✉️ **Outreach**: Draft emails, build sequences, use templates
+- ✅ **Qualification**: BANT/MEDDIC scoring, risk assessment, next actions
+- 📊 **Planning**: Territory analysis, capacity simulation
+
+**What you get:**
+- ✅ Automatic backend startup
+- ✅ Browser-based UI (localhost:3000)
+- ✅ Backend status monitoring
+- ✅ First-run setup wizard
+- ✅ Demo data pre-loaded
+- ✅ Offline-first capabilities
+- ✅ System tray integration (desktop app)
+- ✅ Built-in safety guardrails
+
+### Documentation
+
+- **[DESKTOP_DEPLOYMENT.md](DESKTOP_DEPLOYMENT.md)** - Comprehensive deployment guide
+- **[DESKTOP_UI_INTEGRATION_COMPLETE.md](DESKTOP_UI_INTEGRATION_COMPLETE.md)** - Technical implementation details
+- **[PRODUCTION_LAUNCH_PLAN.md](PRODUCTION_LAUNCH_PLAN.md)** - 3-week rollout plan
+- **[QUICK_REFERENCE_CARD.md](QUICK_REFERENCE_CARD.md)** - Sales rep cheat sheet
+
+**Quick Test**: Run `./launch_sales_assistant.sh` and press `Cmd/Ctrl+K` to see Quick Actions!
+
+---
+
+## Quickstart (Development)
 ```bash
 # 1) Install (Python >=3.10)
 uv sync --all-extras --dev

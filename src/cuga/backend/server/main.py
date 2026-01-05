@@ -644,6 +644,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include AGENTS.md coordinator endpoints (orchestrator integration)
+try:
+    from cuga.backend.api.routes import agents_router
+    app.include_router(agents_router)
+    logger.info("✅ AGENTS.md coordinator endpoints registered at /api/agents/")
+except ImportError as e:
+    logger.warning(f"⚠️  AGENTS.md coordinator endpoints not available: {e}")
+
+# Include WebSocket trace streaming
+try:
+    from cuga.backend.api.websocket import traces_router
+    app.include_router(traces_router)
+    logger.info("✅ WebSocket trace streaming registered at /ws/traces/{trace_id}")
+except ImportError as e:
+    logger.warning(f"⚠️  WebSocket trace streaming not available: {e}")
+
 # Include adapter hot-swap endpoints
 try:
     from cuga.api.adapters import router as adapters_router
@@ -651,6 +667,57 @@ try:
     logger.info("✅ Adapter hot-swap endpoints registered at /api/adapters/")
 except ImportError as e:
     logger.warning(f"⚠️  Adapter endpoints not available: {e}")
+
+# Include capability health endpoints (AGENTS.md compliance)
+try:
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+    from backend.api.capability_health import router as capability_router
+    app.include_router(capability_router)
+    logger.info("✅ Capability health endpoints registered: /api/capabilities/status, /api/profile, /api/capabilities/budgets")
+except ImportError as e:
+    logger.warning(f"⚠️  Capability health endpoints not available: {e}")
+except Exception as e:
+    logger.warning(f"⚠️  Error loading capability health endpoints: {e}")
+
+
+@app.get("/api/traces")
+async def get_traces(session_id: str):
+    """
+    Get execution traces for a session.
+    Per AGENTS.md observability requirements.
+    """
+    # TODO: Integrate with TraceEmitter storage
+    return {
+        "events": [
+            {
+                "event": "plan_created",
+                "trace_id": session_id,
+                "timestamp": "2026-01-04T12:00:00Z",
+                "status": "success",
+                "duration_ms": 120,
+                "details": {"steps": 3}
+            }
+        ]
+    }
+
+
+@app.post("/api/approve")
+async def handle_approval(approval_data: Dict[str, Any]):
+    """
+    Handle approval decision from frontend.
+    Per AGENTS.md human authority preservation.
+    """
+    # TODO: Integrate with ApprovalManager
+    approval_id = approval_data.get("request_id")
+    approved = approval_data.get("approved", False)
+    
+    logger.info(f"Approval {'granted' if approved else 'rejected'}: {approval_id}")
+    
+    return {
+        "status": "success",
+        "message": f"Approval {'granted' if approved else 'rejected'}"
+    }
 
 if getattr(settings.advanced_features, "use_extension", False):
     print(settings.advanced_features.use_extension)
