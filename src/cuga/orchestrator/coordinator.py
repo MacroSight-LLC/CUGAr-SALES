@@ -71,16 +71,18 @@ class AGENTSCoordinator:
         self,
         profile: str = "enterprise",
         trace_emitter: Optional[TraceEmitter] = None,
+        registry_path: Optional[str] = "registry.yaml",
     ):
         """
         Initialize coordinator with profile-driven configuration.
         
         Args:
-            profile: Sales profile (enterprise, smb, technical)
+            profile: Sales profile (enterprise, smb, technical, demo)
             trace_emitter: Optional existing TraceEmitter (creates new if None)
+            registry_path: Optional path to registry.yaml
         """
-        # Load profile configuration
-        self.profile_loader = ProfileLoader()
+        # Load profile configuration from registry
+        self.profile_loader = ProfileLoader(registry_path=registry_path)
         self.profile_config = self.profile_loader.load_profile(profile)
         
         # Initialize trace emitter (creates trace_id if not provided)

@@ -1,53 +1,306 @@
-# Example/Development Registry
+# CUGAr-SALES Registry (Demo-Ready Configuration)
 # 
-# THIS IS NOT THE CANONICAL REGISTRY
-# The canonical, production-ready registry is located at: docs/mcp/registry.yaml
-#
-# This file serves as a minimal example for development and testing purposes.
-# For production deployments, compose/imports, and full tool definitions, see docs/mcp/registry.yaml
+# Canonical registry for sales capabilities following AGENTS.md guardrails:
+# - Capability-first (not vendor-specific)
+# - Offline-first defaults
+# - Deterministic ordering
+# - Audit traces
+# - Human approval for irreversible actions
 
 version: v1
+metadata:
+  name: "CUGAr-SALES MVP Registry"
+  version: "0.1.0"
+  last_updated: "2026-01-04"
+  compliance: "AGENTS.md canonical domains"
+
 defaults:
   tier: 1
-  enabled: false  # Development examples disabled by default
-  protocol: mcp
+  enabled: true
+  protocol: local
+  side_effects: "read-only"
+  requires_approval: false
 
-# Example servers for local development
-servers:
-  mock_filesystem:
-    url: http://localhost:8001
-    schema: http://localhost:8001/openapi.json
-    enabled_env: ENABLE_FILESYSTEM_MCP
-    tools:
-      - capability: "Filesystem"
-        action: "Read contacts"
-        operation_id: "readContacts"
-        description: "Read contact list from workspace files"
-        cost: 1.0
-        latency: 1.0
-  mock_crm:
-    url: http://localhost:8002
-    schema: http://localhost:8002/openapi.json
-    enabled: true
-    enabled_env: ENABLE_CRM_MCP
-    tools:
-      - capability: "CRM"
-        action: "Fetch contacts"
-        operation_id: "fetchContacts"
-        description: "Retrieve CRM contacts"
-        cost: 1.2
-        latency: 1.5
+# ============================================================================
+# CANONICAL SALES CAPABILITY DOMAINS (per AGENTS.md)
+# ============================================================================
 
-local_tools:
-  - id: python_code_interpreter
-    name: "Python Code Interpreter"
-    description: "Executes Python code in a secure, sandboxed environment."
-    sandbox: "code-secure"
+# Domain 4: Outreach & Engagement
+# Purpose: Draft and assess outbound messages (NO AUTO-SEND)
+tools:
+  draft_outbound_message:
+    domain: "engagement"
+    module: "cuga.modular.tools.sales.outreach"
+    function: "draft_outbound_message"
+    description: "Generate personalized outreach message from template and prospect data"
+    purpose: "Scale message personalization while maintaining quality"
+    side_effects: "propose"  # Drafts only, never sends
+    requires_approval: true
+    offline_capable: true
+    
+    inputs:
+      template:
+        type: "string"
+        required: true
+        description: "Message template with {{variable}} placeholders"
+      prospect_data:
+        type: "object"
+        required: true
+        description: "Personalization variables (first_name, company, etc.)"
+      channel:
+        type: "enum"
+        values: ["email", "linkedin", "phone", "sms"]
+        default: "email"
+      tone:
+        type: "string"
+        default: "professional"
+    
+    outputs:
+      message_draft:
+        type: "string"
+        description: "Rendered message text"
+      subject:
+        type: "string"
+        description: "Subject line (for email/linkedin)"
+      status:
+        type: "string"
+        fixed_value: "draft"  # NEVER "sent"
+      variables_used:
+        type: "array"
+        description: "Successfully substituted variables"
+      missing_variables:
+        type: "array"
+        description: "Variables in template but not provided"
+      metadata:
+        type: "object"
+        fields:
+          - personalization_score
+          - word_count
+          - template_hash
+    
+    guardrails:
+      - "MUST NOT send messages"
+      - "MUST return status='draft'"
+      - "MUST preserve trace_id in context"
+      - "MUST work offline (no API calls)"
+    
+    cost: 1.0
+    latency_ms: 50
+    failure_mode: "validation"
+    
+  assess_message_quality:
+    domain: "engagement"
+    module: "cuga.modular.tools.sales.outreach"
+    function: "assess_message_quality"
+    description: "Assess outreach message quality and identify improvements"
+    purpose: "Prevent low-quality messages from damaging reputation"
+    side_effects: "read-only"
+    requires_approval: false
+    offline_capable: true
+    
+    inputs:
+      message:
+        type: "string"
+        required: true
+      subject:
+        type: "string"
+        required: false
+      channel:
+        type: "enum"
+        values: ["email", "linkedin", "phone", "sms"]
+    
+    outputs:
+      quality_score:
+        type: "float"
+        range: [0.0, 1.0]
+      issues:
+        type: "array"
+        description: "Detected quality issues"
+      recommendations:
+        type: "array"
+        description: "Improvement suggestions"
+      passed:
+        type: "boolean"
+        description: "Meets quality threshold"
+    
+    cost: 0.5
+    latency_ms: 30
+
+# Domain 2: Account & Prospect Intelligence
+  normalize_account_record:
+    domain: "intelligence"
+    module: "cuga.modular.tools.sales.account_intelligence"
+    function: "normalize_account_record"
+    description: "Normalize and validate account data from multiple sources"
+    purpose: "Ensure consistent account data structure"
+    side_effects: "read-only"
+    offline_capable: true
+    cost: 0.3
+
+  score_account_fit:
+    domain: "intelligence"
+    module: "cuga.modular.tools.sales.account_intelligence"
+    function: "score_account_fit"
+    description: "Score account fit against ideal customer profile"
+    purpose: "Prioritize accounts by likelihood to close"
+    side_effects: "read-only"
+    offline_capable: true
+    cost: 0.5
+
+# Domain 5: Qualification & Deal Progression
+  qualify_opportunity:
+    domain: "qualification"
+    module: "cuga.modular.tools.sales.qualification"
+    function: "qualify_opportunity"
+    description: "Assess opportunity against BANT/MEDDICC criteria"
+    purpose: "Surface deal risks and unknowns early"
+    side_effects: "read-only"
+    offline_capable: true
+    cost: 0.7
+
+# Domain 1: Territory & Capacity Planning
+  simulate_territory_change:
+    domain: "territory"
+    module: "cuga.modular.tools.sales.territory"
+    function: "simulate_territory_change"
+    description: "Simulate territory reassignment impact"
+    purpose: "Model capacity changes before committing"
+    side_effects: "read-only"  # Simulation only
+    requires_approval: false
+    offline_capable: true
+    cost: 1.2
+
+# ============================================================================
+# EXECUTION PROFILES
+# ============================================================================
+
+profiles:
+  demo:
+    description: "Demo profile with generous limits for showcasing"
+    allowed_tools:
+      - draft_outbound_message
+      - assess_message_quality
+      - normalize_account_record
+      - score_account_fit
+      - qualify_opportunity
+    approval_required:
+      - execute
+      - propose
+    allowed_adapters:
+      - mock
+    guardrails: "moderate"
+    budget:
+      total_calls: 50
+      calls_per_domain:
+        engagement: 20
+        intelligence: 15
+        qualification: 10
+        territory: 5
+      warning_threshold: 0.8
+    timeout_seconds: 30
+    
+  sales_rep:
+    description: "Standard sales rep profile"
+    allowed_tools:
+      - draft_outbound_message
+      - assess_message_quality
+      - score_account_fit
+      - qualify_opportunity
+    approval_required:
+      - execute
+      - propose
+    allowed_adapters:
+      - salesforce
+      - hubspot
+      - mock
+    guardrails: "moderate"
+    budget:
+      total_calls: 100
+      calls_per_domain:
+        engagement: 40
+        intelligence: 30
+        qualification: 30
+      warning_threshold: 0.85
+    timeout_seconds: 60
+  
+  sales_manager:
+    description: "Sales manager profile with territory simulation"
+    allowed_tools:
+      - draft_outbound_message
+      - assess_message_quality
+      - score_account_fit
+      - qualify_opportunity
+      - simulate_territory_change
+    approval_required:
+      - execute
+    allowed_adapters:
+      - salesforce
+      - dynamics
+      - hubspot
+      - mock
+    guardrails: "strict"
+    budget:
+      total_calls: 200
+      calls_per_domain:
+        engagement: 60
+        intelligence: 60
+        qualification: 40
+        territory: 40
+      warning_threshold: 0.9
+    timeout_seconds: 120
+
+# ============================================================================
+# EXTERNAL ADAPTERS (Optional, Swappable)
+# ============================================================================
+
+adapters:
+  salesforce:
+    enabled: false
+    enabled_env: "ENABLE_SALESFORCE_ADAPTER"
+    capabilities:
+      - account_enrichment
+      - opportunity_sync
+    url: "https://api.salesforce.com"
+    
+  clearbit:
+    enabled: false
+    enabled_env: "ENABLE_CLEARBIT_ADAPTER"
+    capabilities:
+      - company_enrichment
+      - contact_enrichment
+
+# Note: Tools work without adapters (offline-first)
+# Adapters enhance capabilities but are not required
+
+# ============================================================================
+# SANDBOX POLICIES
+# ============================================================================
 
 sandbox_policies:
   - id: "code-secure"
     type: "subprocess"
-    description: "A secure, subprocess-based Python sandbox with hard resource limits."
+    description: "Secure Python sandbox with hard resource limits"
     max_cpu_time: "5s"
     max_memory: "128MB"
     max_wall_clock_time: "30s"
+
+# ============================================================================
+# OBSERVABILITY
+# ============================================================================
+
+observability:
+  trace_propagation: true
+  canonical_events:
+    - plan_created
+    - route_decision
+    - tool_call_start
+    - tool_call_complete
+    - tool_call_error
+    - budget_warning
+    - approval_requested
+  golden_signals:
+    - success_rate
+    - latency_p50
+    - latency_p95
+    - tool_error_rate
+    - budget_utilization

@@ -1,0 +1,119 @@
+# Alert Rules for CUGAr-SALES Golden Signals
+# Fires alerts when system performance degrades
+
+groups:
+  - name: cugar_golden_signals
+    interval: 30s
+    rules:
+      # Success Rate Alert
+      - alert: LowSuccessRate
+        expr: cugar_success_rate < 0.90
+        for: 5m
+        labels:
+          severity: warning
+          component: orchestrator
+        annotations:
+          summary: "CUGAr-SALES success rate below 90%"
+          description: "Success rate is {{ $value | humanizePercentage }}, expected >90%"
+          
+      # Critical Success Rate Alert
+      - alert: CriticalSuccessRate
+        expr: cugar_success_rate < 0.80
+        for: 2m
+        labels:
+          severity: critical
+          component: orchestrator
+        annotations:
+          summary: "CUGAr-SALES success rate critically low"
+          description: "Success rate is {{ $value | humanizePercentage }}, expected >90%"
+      
+      # Error Rate Alert
+      - alert: HighErrorRate
+        expr: cugar_error_rate > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          component: orchestrator
+        annotations:
+          summary: "CUGAr-SALES error rate above 10%"
+          description: "Error rate is {{ $value | humanizePercentage }}, expected <10%"
+      
+      # Latency P95 Alert
+      - alert: HighLatencyP95
+        expr: cugar_latency_ms{percentile="p95"} > 5000
+        for: 10m
+        labels:
+          severity: warning
+          component: orchestrator
+        annotations:
+          summary: "CUGAr-SALES P95 latency above 5s"
+          description: "P95 latency is {{ $value }}ms, expected <5000ms"
+      
+      # Latency P99 Alert
+      - alert: HighLatencyP99
+        expr: cugar_latency_ms{percentile="p99"} > 10000
+        for: 10m
+        labels:
+          severity: warning
+          component: orchestrator
+        annotations:
+          summary: "CUGAr-SALES P99 latency above 10s"
+          description: "P99 latency is {{ $value }}ms, expected <10000ms"
+      
+      # Budget Exceeded Alert
+      - alert: FrequentBudgetExceeded
+        expr: increase(cugar_budget_exceeded_total[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: budget
+        annotations:
+          summary: "Budget exceeded more than 5 times in 1 hour"
+          description: "Budget has been exceeded {{ $value }} times in the last hour"
+      
+      # Tool Error Rate Alert
+      - alert: HighToolErrorRate
+        expr: (cugar_tool_errors_total / cugar_tool_calls_total) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: tools
+        annotations:
+          summary: "Tool error rate above 5%"
+          description: "Tool error rate is {{ $value | humanizePercentage }}, expected <5%"
+      
+      # Approval Timeout Alert
+      - alert: ApprovalTimeouts
+        expr: rate(cugar_approval_timeout_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: approval
+        annotations:
+          summary: "Approval timeouts detected"
+          description: "Approvals are timing out, check approval service"
+      
+      # No Recent Executions (System Health)
+      - alert: NoRecentExecutions
+        expr: increase(cugar_executions_total[30m]) == 0
+        for: 30m
+        labels:
+          severity: info
+          component: orchestrator
+        annotations:
+          summary: "No executions in last 30 minutes"
+          description: "System may be idle or unhealthy"
+
+  - name: cugar_domain_health
+    interval: 1m
+    rules:
+      # Domain-specific error tracking
+      - alert: DomainErrors
+        expr: increase(cugar_domain_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          component: domain
+        annotations:
+          summary: "High error rate in domain {{ $labels.domain }}"
+          description: "Domain {{ $labels.domain }} has {{ $value }} errors in 5 minutes"

@@ -88,17 +88,21 @@ class ProfileLoader:
         )
     }
     
-    def __init__(self, config_dir: Optional[Path] = None):
+    def __init__(self, config_dir: Optional[Path] = None, registry_path: Optional[str] = None):
         """
         Initialize profile loader.
         
         Args:
             config_dir: Optional directory for custom profile configs
+            registry_path: Optional path to registry.yaml with profile definitions
         """
         self.config_dir = config_dir
         self.profiles = self.DEFAULT_PROFILES.copy()
         
-        if config_dir:
+        # Load from registry.yaml if provided
+        if registry_path:
+            self._load_registry_profiles(registry_path)
+        elif config_dir:
             self._load_custom_profiles()
     
     def load_profile(self, profile_name: str) -> ProfileConfig:
@@ -183,6 +187,30 @@ class ProfileLoader:
     def list_profiles(self) -> List[str]:
         """List all available profile names."""
         return list(self.profiles.keys())
+    
+    def _load_registry_profiles(self, registry_path: str) -> None:
+        """Load profiles from registry.yaml."""
+        try:
+            with open(registry_path) as f:
+                registry = yaml.safe_load(f)
+            
+            if "profiles" not in registry:
+                logger.warning(f"No profiles found in {registry_path}")
+                return
+            
+            for name, profile_data in registry["profiles"].items():
+                self.profiles[name] = ProfileConfig(
+                    name=name,
+                    budget=profile_data.get("budget", {}),
+                    approval_required=profile_data.get("approval_required", ["execute", "propose"]),
+                    allowed_adapters=profile_data.get("allowed_adapters", []),
+                    guardrails=profile_data.get("guardrails", "moderate"),
+                    description=profile_data.get("description")
+                )
+                logger.info(f"Loaded registry profile: {name}")
+        
+        except Exception as e:
+            logger.error(f"Failed to load profiles from registry {registry_path}: {e}")
     
     def _load_custom_profiles(self) -> None:
         """Load custom profiles from config directory."""
